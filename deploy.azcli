@@ -68,7 +68,7 @@ location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
 providerinternalcidr="10.0.0.32/27"
-nva1=opn-nva1
+nva1=provider-nva1
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 
 # 1) Enabling Gateway Load Balancer Preview feature
