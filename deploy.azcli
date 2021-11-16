@@ -94,3 +94,5 @@ az deployment group create --name $nva1 --resource-group $rg \
 --template-uri "https://raw.gitproviderusercontent.com/dmauser/opnazure/master/azuredeploy-TwoNICs.json" \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
+
+# 3) 
