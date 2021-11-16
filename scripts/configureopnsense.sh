@@ -1,5 +1,41 @@
 #!/bin/sh
 
+#!/bin/sh
+
+# Script Params
+# $1 = OPNScriptURI
+# $2 = Primary/Secondary/SingNic/TwoNics
+# $3 = Trusted Nic subnet prefix - used to get the gw
+# $4 = Private IP Secondary Server
+
+# Check if Primary or Secondary Server to setup Firewal Sync
+# Note: Firewall Sync should only be setup in the Primary Server
+if [ "$2" = "Primary" ]; then
+    fetch $1config-active-active-primary.xml
+    fetch $1get_nic_gw.py
+    gwip=$(python get_nic_gw.py $3)
+    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config-active-active-primary.xml
+    sed -i "" "s/xxx.xxx.xxx.xxx/$4/" config-active-active-primary.xml
+    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" config-active-active-primary.xml
+    cp config-active-active-primary.xml /usr/local/etc/config.xml
+elif [ "$2" = "Secondary" ]; then
+    fetch $1config.xml
+    fetch $1get_nic_gw.py
+    gwip=$(python get_nic_gw.py $3)
+    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
+    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" config.xml
+    cp config.xml /usr/local/etc/config.xml
+elif [ "$2" = "SingNic" ]; then
+    fetch $1config-snic.xml
+    cp config-snic.xml /usr/local/etc/config.xml
+elif [ "$2" = "TwoNics" ]; then
+    fetch $1config.xml
+    fetch $1get_nic_gw.py
+    gwip=$(python get_nic_gw.py $3)
+    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
+    cp config.xml /usr/local/etc/config.xml
+fi
+
 #OPNSense default configuration template
 #fetch https://raw.githubusercontent.com/dmauser/opnazure/master/scripts/$1
 #cp $1 /usr/local/etc/config.xml
@@ -47,10 +83,10 @@ cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
 ifconfig hn0 mtu 4000
 ifconfig hn1 mtu 4000
 ifconfig vxlan0 down
-ifconfig vxlan0 vxlanlocal $2 vxlanremote $3 vxlanlocalport 10800 vxlanremoteport 10800
+ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800
 ifconfig vxlan0 up
 ifconfig vxlan1 down
-ifconfig vxlan1 vxlanlocal $2 vxlanremote $3 vxlanlocalport 10801 vxlanremoteport 10801
+ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801
 ifconfig vxlan1 up
 ifconfig bridge0 addm vxlan0
 ifconfig bridge0 addm vxlan1

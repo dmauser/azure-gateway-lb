@@ -9,6 +9,7 @@ param OPNScriptURI string
 param ShellScriptName string
 param ShellScriptParameters string
 param nsgId string = ''
+param gatewayLbPrivateIPAddress string
 
 var untrustedNicName = '${virtualMachineName}-Untrusted-NIC'
 var trustedNicName = '${virtualMachineName}-Trusted-NIC'
@@ -88,7 +89,7 @@ resource vmext 'Microsoft.Compute/virtualMachines/extensions@2015-06-15' = {
       fileUris: [
         '${OPNScriptURI}${ShellScriptName}'
       ]
-      commandToExecute: 'sh ${ShellScriptName} ${ShellScriptParameters}'
+      commandToExecute: 'sh ${ShellScriptName} ${ShellScriptParameters} ${trustedNic.outputs.nicIP} ${gatewayLbPrivateIPAddress}'
     }
   }
 }
