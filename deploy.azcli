@@ -91,7 +91,7 @@ az network lb rule create -g $rg --lb-name gwlb --name haportrule --protocol all
 
 # 3) Deploy both OPNsense NVAs
 az deployment group create --name $nva1 --resource-group $rg \
---template-file "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-two-nics.json" \
+--template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-two-nics.json" \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$(az network lb show -g $rg --name gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv) \
 --no-wait
 
