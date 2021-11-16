@@ -37,7 +37,7 @@ param ShellScriptName string = 'configureopnsense.sh'
 @sys.description('Deploy Windows VM Trusted Subnet')
 param DeployWindows bool = false
 
-param gatewayLbPrivateIPAddress string
+param gwLbPip string
 
 // Variables
 var publicIPAddressName = '${virtualMachineName}-PublicIP'
@@ -113,7 +113,7 @@ module opnSense 'modules/VM/opnsense-vm.bicep' = {
   name: virtualMachineName
   params: {
     ShellScriptParameters: '${OpnScriptURI} TwoNics ${trustedSubnet.properties.addressPrefix}'
-    gatewayLbPrivateIPAddress: gatewayLbPrivateIPAddress
+    gatewayLbPrivateIPAddress: gwLbPip
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
     TempPassword: TempPassword
