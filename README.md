@@ -1,11 +1,22 @@
-# Azure Gateway Load Balancer Lab (OPNSense)
+# Azure Gateway Load Balancer (Lab)
 (coming soon)
 
 ## Concepts
 
 ## Network Diagram
 
-## Lab
+## Deploy lab environment
 
-### Deploy
+### Consumer
 
+### Provider
+
+### Add NVA (OPNSense)
+
+## Explore inspection capabilities
+
+### Layer 4 (Firewall)
+
+### Layer 7 (Proxy)
+
+### Intrusion detection and prevention (IPDS)
