@@ -1,0 +1,96 @@
+### Consumer ###
+# Define variables based on your requirements
+rg=gwlb-lab
+location=centralus
+consumervnetcidr="10.100.0.0/24"
+consumersubnet="10.100.0.0/27"
+mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
+
+# 1) Create Consumer VNET and subnet
+az group create --name $rg --location $location --output none
+az network vnet create --resource-group $rg --name consumer-vnet --location $location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
+
+# 2) #(Optional) UDR to restrict SSH access to Azure VMs from your Public IP only:
+az network nsg create --resource-group $rg --name nsg-default --location $location
+az network nsg rule create \
+    --resource-group $rg \
+    --nsg-name nsg-default \
+    --name AllowSSHRule \
+    --direction Inbound \
+    --priority 100 \
+    --source-address-prefixes $mypip/32 \
+    --source-port-ranges '*' \
+    --destination-address-prefixes '*' \
+    --destination-port-ranges 22 \
+    --access Allow \
+    --protocol Tcp \
+    --description "Allow inbound SSH" \
+    --output none
+
+az network nsg rule create \
+    --resource-group $rg \
+    --nsg-name nsg-default \
+    --name allow-http \
+    --direction Inbound \
+    --priority  101 \
+    --source-address-prefixes * \
+    --source-port-ranges '*' \
+    --destination-address-prefixes '*' \
+    --destination-port-ranges 80 \
+    --access Allow \
+    --protocol Tcp \
+    --description "Allow inbound HTTP" \
+    --output none
+az network vnet subnet update --name vmsubnet --resource-group $rg --vnet-name consumer-vnet --network-security-group nsg-default --output none
+
+# 3) Create Public Load Balancer
+az network lb create -g $rg --name elb-std --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
+az network lb probe create -g $rg --lb-name elb-std --name httpprobe --protocol tcp --port 80 --output none
+az network lb rule create -g $rg --lb-name elb-std --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
+az network lb inbound-nat-rule create -g $rg --lb-name elb-std -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
+
+# 4) Deploy Azure VM with NGX using a simple test Website
+echo "Type username and password"
+read -p 'Username: ' username && read -sp 'Password: ' password 
+
+az network nic create --resource-group $rg -n consumer-vm-nic --location $location --subnet vmsubnet --vnet-name consumer-vnet --output none
+az vm create -n consumer-vm -g $rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $location --output none
+az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
+
+# 5) Attach VM to LB Rule and NAT Rule
+az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name elb-std --output none
+az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name elb-std --output none
+
+### Provider ###
+#Variables
+rg=gwlb-lab
+location=centralus
+providervnetcidr="10.0.0.0/24"
+providerexternalcidr="10.0.0.0/27"
+providerinternalcidr="10.0.0.32/27"
+nva1=opn-nva1
+mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
+
+# 1) Enabling Gateway Load Balancer Preview feature
+az feature register --name AllowGatewayLoadBalancer --namespace Microsoft.Network -o none
+az provider register --namespace Microsoft.Network
+
+# Check status and only proceed if is showing as **Registered**
+az feature show --name AllowGatewayLoadBalancer --namespace Microsoft.Network --query properties.state
+
+# 2) Create provider VNET and Internal/External 
+az group create --name $rg --location $location --output none
+az network vnet create --resource-group $rg --name provider-vnet --location $location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
+az network vnet subnet create --name internal --resource-group $rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
+
+# 3) Enable Gateway LB 
+az network lb create -g $rg --name gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
+az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '901' --lb-name gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
+az network lb probe create -g $rg --lb-name gwlb --name sshprobe --protocol tcp --port 22   
+az network lb rule create -g $rg --lb-name gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
+
+# 3) Deploy both OPNsense NVAs
+az deployment group create --name $nva1 --resource-group $rg \
+--template-uri "https://raw.gitproviderusercontent.com/dmauser/opnazure/master/azuredeploy-TwoNICs.json" \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
+--no-wait
