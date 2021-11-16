@@ -1,7 +1,5 @@
 #!/bin/sh
 
-#!/bin/sh
-
 # Script Params
 # $1 = OPNScriptURI
 # $2 = Primary/Secondary/SingNic/TwoNics
