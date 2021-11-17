@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1008.15138",
-      "templateHash": "5316162154031898574"
+      "templateHash": "12165918836387060035"
     }
   },
   "parameters": {
@@ -72,7 +72,7 @@
     },
     "ShellScriptName": {
       "type": "string",
-      "defaultValue": "configureopnsense.sh",
+      "defaultValue": "gwlbconfig.sh",
       "metadata": {
         "description": "Shell Script to be executed"
       }
@@ -600,7 +600,7 @@
             "value": "[format('{0}-CustomScript', parameters('virtualMachineName'))]"
           },
           "ShellScriptParameters": {
-            "value": "[format('{0} TwoNics {1} {2} {3}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix, reference(resourceId('Microsoft.Resources/deployments', parameters('virtualMachineName')), '2020-06-01').outputs.trustedNicIP.value, parameters('gwLbPip'))]"
+            "value": "[format('{0} {1} {2} {3}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix, reference(resourceId('Microsoft.Resources/deployments', parameters('virtualMachineName')), '2020-06-01').outputs.trustedNicIP.value, parameters('gwLbPip'))]"
           },
           "OPNScriptURI": {
             "value": "[parameters('OpnScriptURI')]"
