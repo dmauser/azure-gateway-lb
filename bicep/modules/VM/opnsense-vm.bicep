@@ -89,7 +89,7 @@ resource vmext 'Microsoft.Compute/virtualMachines/extensions@2015-06-15' = {
       fileUris: [
         '${OPNScriptURI}${ShellScriptName}'
       ]
-      commandToExecute: 'sh ${ShellScriptName} ${ShellScriptParameters} ${trustedNic.outputs.nicIP} ${gatewayLbPrivateIPAddress}'
+      commandToExecute: 'sh ${ShellScriptName} ${ShellScriptParameters}'
     }
   }
 }
