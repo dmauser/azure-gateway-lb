@@ -5,11 +5,8 @@ param virtualMachineName string
 param TempUsername string
 param TempPassword string
 param virtualMachineSize string
-param OPNScriptURI string
-param ShellScriptName string
-param ShellScriptParameters string
 param nsgId string = ''
-param gatewayLbPrivateIPAddress string
+
 
 var untrustedNicName = '${virtualMachineName}-Untrusted-NIC'
 var trustedNicName = '${virtualMachineName}-Trusted-NIC'
@@ -77,22 +74,6 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2021-03-01' = {
   }
 }
 
-resource vmext 'Microsoft.Compute/virtualMachines/extensions@2015-06-15' = {
-  name: '${OPNsense.name}/CustomScript'
-  location: resourceGroup().location
-  properties: {
-    publisher: 'Microsoft.OSTCExtensions'
-    type: 'CustomScriptForLinux'
-    typeHandlerVersion: '1.4'
-    autoUpgradeMinorVersion: false
-    settings:{
-      fileUris: [
-        '${OPNScriptURI}${ShellScriptName}'
-      ]
-      commandToExecute: 'sh ${ShellScriptName} ${ShellScriptParameters}'
-    }
-  }
-}
 
 output untrustedNicIP string = untrustedNic.outputs.nicIP
 output trustedNicIP string = trustedNic.outputs.nicIP

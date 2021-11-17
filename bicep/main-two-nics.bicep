@@ -112,10 +112,6 @@ resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-11-01' ex
 module opnSense 'modules/VM/opnsense-vm.bicep' = {
   name: virtualMachineName
   params: {
-    ShellScriptParameters: '${OpnScriptURI} TwoNics ${trustedSubnet.properties.addressPrefix} ${trustedNic.outputs.nicIP} ${gatewayLbPrivateIPAddress}'
-    gatewayLbPrivateIPAddress: gwLbPip
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
     TempPassword: TempPassword
     TempUsername: TempUsername
     trustedSubnetId: trustedSubnet.id
@@ -129,6 +125,22 @@ module opnSense 'modules/VM/opnsense-vm.bicep' = {
     nsgappgwsubnet
   ]
 }
+
+//VM Extentension
+module vmext 'modules/VM/vmext.bicep' = {
+  name: '${virtualMachineName}/CustomScript'
+  params: {
+    virtualMachineName: virtualMachineName
+    ShellScriptParameters: '${OpnScriptURI} TwoNics ${trustedSubnet.properties.addressPrefix} ${opnSense.outputs.trustedNicIP} ${gwLbPip}'
+    OPNScriptURI: OpnScriptURI
+    ShellScriptName: ShellScriptName
+
+  }
+  dependsOn: [
+    opnSense
+  ]
+}
+
 
 // Windows11 Client Resources
 module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {
