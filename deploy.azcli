@@ -89,10 +89,11 @@ az network lb address-pool tunnel-interface add --address-pool nvabackend --iden
 az network lb probe create -g $rg --lb-name gwlb --name sshprobe --protocol tcp --port 22   
 az network lb rule create -g $rg --lb-name gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
-# 3) Deploy both OPNsense NVAs
+# 3) Deploy both OPNsense NVA
+gwlbpip=$(az network lb show -g $rg --name gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
 az deployment group create --name $nva1 --resource-group $rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-two-nics.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$(az network lb show -g $rg --name gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv) \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$gwlbpip \
 --no-wait
 
 # 3) Deploy both OPNsense NVAs
