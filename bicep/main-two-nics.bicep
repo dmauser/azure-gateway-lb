@@ -126,7 +126,7 @@ module opnSense 'modules/VM/opnsense-vm.bicep' = {
   ]
 }
 
-//VM Extentension
+//VM Extension
 module vmext 'modules/VM/vmext.bicep' = {
   name: '${virtualMachineName}/CustomScript'
   params: {
