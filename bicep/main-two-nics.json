@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1008.15138",
-      "templateHash": "11359641956905296948"
+      "templateHash": "6082419213929560514"
     }
   },
   "parameters": {
@@ -589,7 +589,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}-CustomScript', parameters('virtualMachineName'))]",
+      "name": "CustomScript",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -597,7 +597,7 @@
         "mode": "Incremental",
         "parameters": {
           "ScriptName": {
-            "value": "[format('{0}-CustomScript', parameters('virtualMachineName'))]"
+            "value": "CustomScript"
           },
           "ShellScriptParameters": {
             "value": "[format('{0} {1} {2}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix, parameters('gwLbPip'))]"

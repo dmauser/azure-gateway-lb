@@ -128,9 +128,9 @@ module opnSense 'modules/VM/opnsense-vm.bicep' = {
 
 //VM Extension
 module vmext 'modules/VM/vmext.bicep' = {
-  name: '${virtualMachineName}-CustomScript'
+  name: 'CustomScript'
   params: {
-    ScriptName: '${virtualMachineName}-CustomScript'
+    ScriptName: 'CustomScript'
     ShellScriptParameters: '${OpnScriptURI} ${trustedSubnet.properties.addressPrefix} ${gwLbPip}'
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
