@@ -32,7 +32,7 @@ param PublicIPAddressSku string = 'Standard'
 param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/'
 
 @sys.description('Shell Script to be executed')
-param ShellScriptName string = 'configureopnsense.sh'
+param ShellScriptName string = 'gwlbconfig.sh'
 
 @sys.description('Deploy Windows VM Trusted Subnet')
 param DeployWindows bool = false
@@ -131,7 +131,7 @@ module vmext 'modules/VM/vmext.bicep' = {
   name: '${virtualMachineName}-CustomScript'
   params: {
     ScriptName: '${virtualMachineName}-CustomScript'
-    ShellScriptParameters: '${OpnScriptURI} TwoNics ${trustedSubnet.properties.addressPrefix} ${opnSense.outputs.trustedNicIP} ${gwLbPip}'
+    ShellScriptParameters: '${OpnScriptURI} ${trustedSubnet.properties.addressPrefix} ${opnSense.outputs.trustedNicIP} ${gwLbPip}'
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
 
