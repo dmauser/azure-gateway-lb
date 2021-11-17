@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1008.15138",
-      "templateHash": "16909777215702029920"
+      "templateHash": "5316162154031898574"
     }
   },
   "parameters": {
@@ -589,15 +589,15 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2020-06-01",
-      "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
+      "name": "[format('{0}-CustomScript', parameters('virtualMachineName'))]",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
         },
         "mode": "Incremental",
         "parameters": {
-          "virtualMachineName": {
-            "value": "[parameters('virtualMachineName')]"
+          "ScriptName": {
+            "value": "[format('{0}-CustomScript', parameters('virtualMachineName'))]"
           },
           "ShellScriptParameters": {
             "value": "[format('{0} TwoNics {1} {2} {3}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix, reference(resourceId('Microsoft.Resources/deployments', parameters('virtualMachineName')), '2020-06-01').outputs.trustedNicIP.value, parameters('gwLbPip'))]"
@@ -616,7 +616,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1008.15138",
-              "templateHash": "10142773718068587308"
+              "templateHash": "6657568106137583354"
             }
           },
           "parameters": {
@@ -629,7 +629,7 @@
             "ShellScriptParameters": {
               "type": "string"
             },
-            "virtualMachineName": {
+            "ScriptName": {
               "type": "string"
             }
           },
@@ -638,7 +638,7 @@
             {
               "type": "Microsoft.Compute/virtualMachines/extensions",
               "apiVersion": "2015-06-15",
-              "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
+              "name": "[parameters('ScriptName')]",
               "location": "[resourceGroup().location]",
               "properties": {
                 "publisher": "Microsoft.OSTCExtensions",
