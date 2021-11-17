@@ -96,5 +96,7 @@ az deployment group create --name $nva1 --resource-group $rg \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$gwlbpip \
 --no-wait
 
+az vm extension set --resource-group $rg --vm-name provider-nva1 --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
+
 # 3) Deploy both OPNsense NVAs
 az bicep build 

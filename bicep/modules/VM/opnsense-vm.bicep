@@ -74,6 +74,5 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2021-03-01' = {
   }
 }
 
-
 output untrustedNicIP string = untrustedNic.outputs.nicIP
 output trustedNicIP string = trustedNic.outputs.nicIP

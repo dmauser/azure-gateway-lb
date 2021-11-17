@@ -131,7 +131,7 @@ module vmext 'modules/VM/vmext.bicep' = {
   name: '${virtualMachineName}-CustomScript'
   params: {
     ScriptName: '${virtualMachineName}-CustomScript'
-    ShellScriptParameters: '${OpnScriptURI} ${trustedSubnet.properties.addressPrefix} ${opnSense.outputs.trustedNicIP} ${gwLbPip}'
+    ShellScriptParameters: '${OpnScriptURI} ${trustedSubnet.properties.addressPrefix} ${gwLbPip}'
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
 
