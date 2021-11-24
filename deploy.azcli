@@ -89,14 +89,21 @@ az network lb address-pool tunnel-interface add --address-pool nvabackend --iden
 az network lb probe create -g $rg --lb-name gwlb --name sshprobe --protocol tcp --port 22   
 az network lb rule create -g $rg --lb-name gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
-# 3) Deploy both OPNsense NVA
+# 3) Deploy both OPNsense NVA (work on this)
 gwlbpip=$(az network lb show -g $rg --name gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
+intip=$(az network nic show -g $rg -n provider-nva1-Trusted-NIC --query "ipConfigurations[].privateIpAddress" -o tsv)
 az deployment group create --name $nva1 --resource-group $rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-two-nics.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$gwlbpip \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existing UntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$gwlbpip \
 --no-wait
 
-az vm extension set --resource-group $rg --vm-name provider-nva1 --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
 
-# 3) Deploy both OPNsense NVAs
-az bicep build 
+az vm extension set --resource-group $rg --vm-name provider-nva1 --name CustomScriptForLinux \
+--settings '{"fileUris": ["https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/gwlbconfig.sh"],"commandToExecute": "./gwlbconfig.sh $providerinternalcidr $intip $gwlbpip", "skipDos2Unix": true}' \
+--publisher Microsoft.OSTCExtensions \
+--version 1.4 \
+--no-auto-upgrade true 
+--no-wait
+
+# 4) Attach NVA behind GB-LB:
+az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb-name gwlb --output none
