@@ -48,6 +48,7 @@ ifconfig vxlan1 vxlanlocal $2 vxlanremote $3 vxlanlocalport 10801 vxlanremotepor
 ifconfig vxlan1 up
 ifconfig bridge0 addm vxlan0
 ifconfig bridge0 addm vxlan1
+ifconfig bridge0 up
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 

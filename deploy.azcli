@@ -1,3 +1,11 @@
+
+### AZ CLI 
+az login
+az account list -o table --query "[].{Name:name, IsDefault:isDefault}"
+az account list --query "[?isDefault == \`true\`]" -o table
+az account set --subscription MSDN_Dmauser  #MSDN
+az account set --subscription DMAUSER-MS #Microsoft
+
 ### Consumer ###
 # Define variables based on your requirements
 rg=gwlb-lab
@@ -44,10 +52,10 @@ az network nsg rule create \
 az network vnet subnet update --name vmsubnet --resource-group $rg --vnet-name consumer-vnet --network-security-group nsg-default --output none
 
 # 3) Create Public Load Balancer
-az network lb create -g $rg --name elb-std --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
-az network lb probe create -g $rg --lb-name elb-std --name httpprobe --protocol tcp --port 80 --output none
-az network lb rule create -g $rg --lb-name elb-std --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
-az network lb inbound-nat-rule create -g $rg --lb-name elb-std -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
+az network lb create -g $rg --name consumer-elb --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
+az network lb probe create -g $rg --lb-name consumer-elb --name httpprobe --protocol tcp --port 80 --output none
+az network lb rule create -g $rg --lb-name consumer-elb --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
+az network lb inbound-nat-rule create -g $rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
 
 # 4) Deploy Azure VM with NGX using a simple test Website
 echo "Type username and password"
@@ -58,8 +66,9 @@ az vm create -n consumer-vm -g $rg --image UbuntuLTS --size Standard_B1s --admin
 az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
 
 # 5) Attach VM to LB Rule and NAT Rule
-az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name elb-std --output none
-az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name elb-std --output none
+az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
+az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
+
 
 ### Provider ###
 #Variables
@@ -84,26 +93,140 @@ az network vnet create --resource-group $rg --name provider-vnet --location $loc
 az network vnet subnet create --name internal --resource-group $rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
 
 # 3) Enable Gateway LB 
-az network lb create -g $rg --name gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
-az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '901' --lb-name gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
-az network lb probe create -g $rg --lb-name gwlb --name sshprobe --protocol tcp --port 22   
-az network lb rule create -g $rg --lb-name gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
+az network lb create -g $rg ---name provider-gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
+az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '901' --lb--name provider-gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
+az network lb probe create -g $rg --lb--name provider-gwlb --name sshprobe --protocol tcp --port 22   
+az network lb rule create -g $rg --lb--name provider-gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
 # 3) Deploy both OPNsense NVA (work on this)
-gwlbpip=$(az network lb show -g $rg --name gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
-intip=$(az network nic show -g $rg -n provider-nva1-Trusted-NIC --query "ipConfigurations[].privateIpAddress" -o tsv)
-az deployment group create --name $nva1 --resource-group $rg \
---template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-two-nics.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existing UntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard gwLbPip=$gwlbpip \
---no-wait
-
-
-az vm extension set --resource-group $rg --vm-name provider-nva1 --name CustomScriptForLinux \
---settings '{"fileUris": ["https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/gwlbconfig.sh"],"commandToExecute": "./gwlbconfig.sh $providerinternalcidr $intip $gwlbpip", "skipDos2Unix": true}' \
---publisher Microsoft.OSTCExtensions \
---version 1.4 \
---no-auto-upgrade true 
+gwlbpip=$(az network lb show -g $rg ---name provider-gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
+az deployment group create --name $nva1-$RANDOM --resource-group $rg \
+--template-uri "https://raw.githubusercontent.com/dmauser/opnazure/master/ARM/main-two-nics.json" \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
 # 4) Attach NVA behind GB-LB:
-az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb-name gwlb --output none
+az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb--name provider-gwlb --output none
+
+
+# ***OPNSense UI*** 
+# -> Interfaces -> Other 
+#- vxlan0 (Ext) - VNI 801 / Source address 10.0.0.37 / Remote Address: 10.0.0.36
+#- vxlan1 (Int) - VNI 800 / Source address 10.0.0.37 / Remote Address: 10.0.0.36
+# Note ifconfig dump: vxlan vni 800 local 10.0.0.37:4789 remote 10.0.0.36:4789
+# -> Interfaces Assignments
+# vxlan0 - glbext
+# vxlan1 - glbint
+# Go to each interface glbext/glbint and enable interface
+# Bridge vxlan interfaces
+# -> Interfaces Assignments
+# bridge0 - glbbridge
+# Go to each interface glbext/glbint and enable interface
+# Adjust LAN rule to source any to allow access from Jumpbox
+
+# Manual config OPNSense using Jumpbox
+# Add Linux Jumpbox on Provider-VNET - add vmsubnet + UbuntuVM
+ssh dmauser@40.86.91.148 #Jumpbox
+ssh root@10.0.0.37 #LAN interface OPNSense
+
+# On OPNSense Shell:
+
+#OPN Startup script to VXLAN survive reboots
+cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
+#!/bin/sh
+ifconfig vxlan0 down
+ifconfig vxlan0 vxlanlocal 10.0.0.37 vxlanlocalport 10801 vxlanremote 10.0.0.36 vxlanremoteport 10801
+ifconfig vxlan0 up
+ifconfig vxlan1 down
+ifconfig vxlan1 vxlanlocal 10.0.0.37 vxlanlocalport 10800 vxlanremote 10.0.0.36 vxlanremoteport 10800
+ifconfig vxlan1 up
+ifconfig bridge0 addm vxlan0
+ifconfig bridge0 addm vxlan1
+ifconfig bridge0 up
+EOL
+chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
+
+
+# Demo
+# Attach LB to GW (different sub)
+# Check current sub
+az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
+# MSDN Sub
+az account set --subscription MSDN_Dmauser  #MSDN
+feid=$(az network lb frontend-ip show -g $rg --lb-name gwlb --name frontendip1 --query id --output tsv)
+echo $feid
+
+# MS Sub
+# Add GLB chain
+az account set --subscription DMAUSER-MS #Microsoft
+az network lb frontend-ip update -g $rg --name frontendip1 --lb-name elb-std --public-ip-address PublicIPelb-std --gateway-lb $feid
+
+# Validate GLB chain
+az account set --subscription DMAUSER-MS #Microsoft
+az network lb frontend-ip show -g $rg --name frontendip1 --lb-name elb-std --query gatewayLoadBalancer.id -o tsv
+
+#Remove GLB chain
+az account set --subscription DMAUSER-MS #Microsoft
+az network lb frontend-ip update -g $rg --name frontendip1 --lb-name elb-std --public-ip-address PublicIPelb-std --gateway-lb ""
+
+#Check traffic VxLAN traffic OPNSense after chaining with LB
+tcpdump -n -i hn1 host 10.0.0.36
+
+### Network Capture OPNSense
+#Inbound (External Interface)
+tcpdump -n -i vxlan0 
+#Outbound (External Interface)
+tcpdump -n -i vxlan1 
+
+# Connectivity Checks
+# Port 50000 - NAT Rule to 22 Consumer-VM Backend
+psping -t 40.122.198.202:50000
+sudo hping3 40.122.198.202 -S -p 50000
+sudo nping --tcp 40.122.198.202 -p 80 -c 50000
+
+# Port 80 - LB Rule HTTP
+psping -t 40.122.198.202:80
+sudo hping3 40.122.198.202 -S -p 80
+sudo nping --tcp 40.122.198.202 -p 80 -c 1000
+nc -v -z 40.122.198.202 80
+curl 40.122.198.202
+
+# Test Consumer-VM Oubound Traffic via GLB
+
+ssh dmauser@40.122.198.202 -p 50000 
+nc -v -z 8.8.8.8 53
+
+# Consumer Jumpbox
+ssh dmauser@40.122.156.70
+
+#OPN Capture oubound traffic 
+tcpdump -n -i vxlan1 host 8.8.8.8 
+
+
+#Troubleshooting
+# Compare settings  Internal/External Port/ID and your load balancer.
+
+ifconfig bridge0 destroy
+ifconfig vxlan0 destroy
+ifconfig vxlan1 destroy
+
+setenv gwlbip 10.0.0.36
+setenv extid 901
+setenv extport 10801
+setenv intid 900
+setenv intport 10800
+setenv opnlanip 10.0.0.37
+
+ifconfig hn0 mtu 4000
+ifconfig hn1 mtu 4000
+
+ifconfig vxlan create vxlanid $extid vxlanlocal $opnlanip vxlanlocalport $extport vxlanremote $gwlbip vxlanremoteport $extport
+ifconfig vxlan create vxlanid $intid vxlanlocal $opnlanip vxlanlocalport $intport vxlanremote $gwlbip vxlanremoteport $intport
+
+ifconfig bridge0 create
+ifconfig bridge0 addm vxlan0
+ifconfig bridge0 addm vxlan1
+
+ifconfig vxlan0 up
+ifconfig vxlan1 up
+ifconfig bridge0 up
