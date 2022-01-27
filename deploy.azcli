@@ -57,9 +57,11 @@ az network lb rule create -g $rg --lb-name consumer-elb --name http-lb-rule --pr
 az network lb inbound-nat-rule create -g $rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
 
 # 4) Deploy Azure VM with NGX using a simple test Website
+# 4.1) Set username and password variables.
 echo "Type username and password"
 read -p 'Username: ' username && read -sp 'Password: ' password 
 
+# 4.2) Create VM
 az network nic create --resource-group $rg -n consumer-vm-nic --location $location --subnet vmsubnet --vnet-name consumer-vnet --output none
 az vm create -n consumer-vm -g $rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $location --output none
 az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
