@@ -34,14 +34,13 @@ az network nsg rule create \
     --protocol Tcp \
     --description "Allow inbound SSH" \
     --output none
-
 az network nsg rule create \
     --resource-group $rg \
     --nsg-name nsg-default \
     --name allow-http \
     --direction Inbound \
     --priority  101 \
-    --source-address-prefixes * \
+    --source-address-prefixes '*' \
     --source-port-ranges '*' \
     --destination-address-prefixes '*' \
     --destination-port-ranges 80 \
@@ -68,7 +67,6 @@ az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScri
 # 5) Attach VM to LB Rule and NAT Rule
 az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
 az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
-
 
 ### Provider ###
 #Variables
