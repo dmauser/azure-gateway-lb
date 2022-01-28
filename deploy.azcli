@@ -1,10 +1,15 @@
 
 ### AZ CLI 
 az login
+#List all your subscriptions
 az account list -o table --query "[].{Name:name, IsDefault:isDefault}"
-az account list --query "[?isDefault == \`true\`]" -o table
-az account set --subscription MSDN_Dmauser  #MSDN
-az account set --subscription DMAUSER-MS #Microsoft
+#List default Subscription being used
+az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
+
+# You can provision both Consumer and Provider in the same Subscription
+# In case you want to do it separated Subscription change your active subscription as shown
+az account set --subscription MSDN_Dmauser  #My personal MSDN Subscription
+az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
 
 ### Consumer ###
 # Define variables based on your requirements
@@ -64,11 +69,14 @@ read -p 'Username: ' username && read -sp 'Password: ' password
 # 4.2) Create VM
 az network nic create --resource-group $rg -n consumer-vm-nic --location $location --subnet vmsubnet --vnet-name consumer-vnet --output none
 az vm create -n consumer-vm -g $rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $location --output none
-az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --version 2.1 --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
 
 # 5) Attach VM to LB Rule and NAT Rule
 az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
 az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
+
+# 6) Install nginx and test website
+az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
+
 
 ### Provider ###
 #Variables
@@ -126,7 +134,7 @@ az network nic ip-config address-pool add --address-pool nvabackend --ip-config-
 
 # Manual config OPNSense using Jumpbox
 # Add Linux Jumpbox on Provider-VNET - add vmsubnet + UbuntuVM
-ssh dmauser@40.86.91.148 #Jumpbox
+ssh dmauser@40.122.247.106 #Jumpbox
 ssh root@10.0.0.37 #LAN interface OPNSense
 
 # On OPNSense Shell:
@@ -145,7 +153,6 @@ ifconfig bridge0 addm vxlan1
 ifconfig bridge0 up
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
-
 
 # Demo
 # Attach LB to GW (different sub)
@@ -174,11 +181,15 @@ tcpdump -n -i hn1 host 10.0.0.36
 
 ### Network Capture OPNSense
 #Inbound (External Interface)
-tcpdump -n -i vxlan0 
+tcpdump -n -i vxlan0
 #Outbound (External Interface)
 tcpdump -n -i vxlan1 
 
-# Connectivity Checks
+# Connectivity Checks / Replace the Public IP listed below with your LB.
+# Get you LB Public IP:
+az account set --subscription DMAUSER-MS #Microsoft
+az network public-ip show -g $rg --name PublicIPconsumer-elb --query ipAddress -o tsv
+
 # Port 50000 - NAT Rule to 22 Consumer-VM Backend
 psping -t 40.122.198.202:50000
 sudo hping3 40.122.198.202 -S -p 50000
@@ -192,7 +203,6 @@ nc -v -z 40.122.198.202 80
 curl 40.122.198.202
 
 # Test Consumer-VM Oubound Traffic via GLB
-
 ssh dmauser@40.122.198.202 -p 50000 
 nc -v -z 8.8.8.8 53
 
@@ -209,6 +219,8 @@ tcpdump -n -i vxlan1 host 8.8.8.8
 ifconfig bridge0 destroy
 ifconfig vxlan0 destroy
 ifconfig vxlan1 destroy
+
+ifconfig vxlan2 destroy
 
 setenv gwlbip 10.0.0.36
 setenv extid 901
