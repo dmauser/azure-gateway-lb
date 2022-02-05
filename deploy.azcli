@@ -88,19 +88,12 @@ providerinternalcidr="10.0.0.32/27"
 nva1=provider-nva1
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 
-# 1) Enabling Gateway Load Balancer Preview feature
-az feature register --name AllowGatewayLoadBalancer --namespace Microsoft.Network -o none
-az provider register --namespace Microsoft.Network
-
-# Check status and only proceed if is showing as **Registered**
-az feature show --name AllowGatewayLoadBalancer --namespace Microsoft.Network --query properties.state
-
-# 2) Create provider VNET and Internal/External 
+# 1) Create provider VNET and Internal/External 
 az group create --name $rg --location $location --output none
 az network vnet create --resource-group $rg --name provider-vnet --location $location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
 az network vnet subnet create --name internal --resource-group $rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
 
-# 3) Enable Gateway LB 
+# 2) Enable Gateway LB 
 az network lb create -g $rg ---name provider-gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
 az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '901' --lb--name provider-gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
 az network lb probe create -g $rg --lb--name provider-gwlb --name sshprobe --protocol tcp --port 22   
@@ -115,7 +108,6 @@ az deployment group create --name $nva1-$RANDOM --resource-group $rg \
 
 # 4) Attach NVA behind GB-LB:
 az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb--name provider-gwlb --output none
-
 
 # ***OPNSense UI*** 
 # -> Interfaces -> Other 
@@ -134,8 +126,6 @@ az network nic ip-config address-pool add --address-pool nvabackend --ip-config-
 
 # Manual config OPNSense using Jumpbox
 # Add Linux Jumpbox on Provider-VNET - add vmsubnet + UbuntuVM
-ssh dmauser@40.122.247.106 #Jumpbox
-ssh root@10.0.0.37 #LAN interface OPNSense
 
 # On OPNSense Shell:
 
@@ -154,7 +144,9 @@ ifconfig bridge0 up
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 
-# Demo
+# Demo (make changes based on your needs)
+ssh dmauser@40.122.247.106 #Jumpbox
+ssh root@10.0.0.37 #LAN interface OPNSense
 # Attach LB to GW (different sub)
 # Check current sub
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
