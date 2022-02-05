@@ -176,6 +176,9 @@ az network lb frontend-ip show -g $rg --name frontendip1 --lb-name elb-std --que
 az account set --subscription DMAUSER-MS #Microsoft
 az network lb frontend-ip update -g $rg --name frontendip1 --lb-name elb-std --public-ip-address PublicIPelb-std --gateway-lb ""
 
+#Provider Jumpbox
+ssh dmauser@168.61.178.81
+
 #Check traffic VxLAN traffic OPNSense after chaining with LB
 tcpdump -n -i hn1 host 10.0.0.36
 
@@ -191,19 +194,19 @@ az account set --subscription DMAUSER-MS #Microsoft
 az network public-ip show -g $rg --name PublicIPconsumer-elb --query ipAddress -o tsv
 
 # Port 50000 - NAT Rule to 22 Consumer-VM Backend
-psping -t 40.122.198.202:50000
-sudo hping3 40.122.198.202 -S -p 50000
-sudo nping --tcp 40.122.198.202 -p 80 -c 50000
+psping -t 40.77.94.253:50000
+sudo hping3 40.77.94.253 -S -p 50000
+sudo nping --tcp 40.77.94.253 -p 80 -c 50000
 
 # Port 80 - LB Rule HTTP
-psping -t 40.122.198.202:80
-sudo hping3 40.122.198.202 -S -p 80
-sudo nping --tcp 40.122.198.202 -p 80 -c 1000
-nc -v -z 40.122.198.202 80
-curl 40.122.198.202
+psping -t 40.77.94.253:80
+sudo hping3 40.77.94.253 -S -p 80
+sudo nping --tcp 40.77.94.253 -p 80 -c 1000
+nc -v -z 40.77.94.253 80
+curl 40.77.94.253
 
 # Test Consumer-VM Oubound Traffic via GLB
-ssh dmauser@40.122.198.202 -p 50000 
+ssh dmauser@40.77.94.253 -p 50000 
 nc -v -z 8.8.8.8 53
 
 # Consumer Jumpbox
