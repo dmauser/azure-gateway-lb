@@ -14,15 +14,49 @@ if [ "$2" = "Primary" ]; then
     gwip=$(python get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config-active-active-primary.xml
     sed -i "" "s/xxx.xxx.xxx.xxx/$4/" config-active-active-primary.xml
+    sed -i "" "s/lll.lll.lll.lll/$5/" config-active-active-primary.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$6/" config-active-active-primary.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" config-active-active-primary.xml
     cp config-active-active-primary.xml /usr/local/etc/config.xml
+    # Tweak opnsense as we need to support non-standard vxlan port
+    cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
+    #!/bin/sh
+    ifconfig hn0 mtu 4000
+    ifconfig hn1 mtu 4000
+    ifconfig vxlan0 down
+    ifconfig vxlan0 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10800 vxlanremoteport 10800
+    ifconfig vxlan0 up
+    ifconfig vxlan1 down
+    ifconfig vxlan1 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10801 vxlanremoteport 10801
+    ifconfig vxlan1 up
+    ifconfig bridge0 addm vxlan0
+    ifconfig bridge0 addm vxlan1
+    EOL
+    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 elif [ "$2" = "Secondary" ]; then
     fetch $1config.xml
     fetch $1get_nic_gw.py
     gwip=$(python get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
+    sed -i "" "s/lll.lll.lll.lll/$4/" config.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" config.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" config.xml
     cp config.xml /usr/local/etc/config.xml
+    # Tweak opnsense as we need to support non-standard vxlan port
+    cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
+    #!/bin/sh
+    ifconfig hn0 mtu 4000
+    ifconfig hn1 mtu 4000
+    ifconfig vxlan0 down
+    ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800
+    ifconfig vxlan0 up
+    ifconfig vxlan1 down
+    ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801
+    ifconfig vxlan1 up
+    ifconfig bridge0 addm vxlan0
+    ifconfig bridge0 addm vxlan1
+    EOL
+    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 elif [ "$2" = "SingNic" ]; then
     fetch $1config-snic.xml
     cp config-snic.xml /usr/local/etc/config.xml
@@ -76,22 +110,6 @@ cat > /usr/local/etc/rc.syshook.d/start/22-remoteroute <<EOL
 route delete 168.63.129.16
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/22-remoteroute
-
-# Tweak opnsense as we need to support non-standard vxlan port
-cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
-#!/bin/sh
-ifconfig hn0 mtu 4000
-ifconfig hn1 mtu 4000
-ifconfig vxlan0 down
-ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800
-ifconfig vxlan0 up
-ifconfig vxlan1 down
-ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801
-ifconfig vxlan1 up
-ifconfig bridge0 addm vxlan0
-ifconfig bridge0 addm vxlan1
-EOL
-chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 
 #Adds support to LB probe from IP 168.63.129.16
 # Add Azure VIP on Arp table

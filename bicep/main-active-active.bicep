@@ -197,11 +197,12 @@ module elb 'modules/vnet/lb.bicep' = {
   }
 }
 
-// Internal Load Balancer
-module ilb 'modules/vnet/gwlb.bicep' = {
+// Gateway Load Balancer
+module ilb 'modules/vnet/lb.bicep' = {
   name: internalLoadBalanceName
   params: {
     lbName: internalLoadBalanceName
+    skuname: 'Gateway'
     frontendIPConfigurations: [
       {
         name: internalLoadBalanceFIPConfName

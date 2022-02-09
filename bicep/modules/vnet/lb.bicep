@@ -4,7 +4,7 @@ param backendAddressPools array
 param loadBalancingRules array
 param outboundRules array = []
 param probe array
-param skuname string
+param skuname string = 'Standard'
 
 resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
   name: lbName
