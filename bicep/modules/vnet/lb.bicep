@@ -23,3 +23,4 @@ resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
 }
 
 output backendAddressPools array = lb.properties.backendAddressPools
+output frontendIPConfigurations array = lb.properties.frontendIPConfigurations

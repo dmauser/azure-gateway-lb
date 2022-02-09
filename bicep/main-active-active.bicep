@@ -29,7 +29,7 @@ param existingTrustedSubnet string
 param PublicIPAddressSku string = 'Standard'
 
 @sys.description('URI for Custom OPN Script and Config')
-param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/opnazure/master/scripts/'
+param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts'
 
 @sys.description('Shell Script to be executed')
 param ShellScriptName string = 'configureopnsense.sh'
@@ -279,7 +279,7 @@ module ilb 'modules/vnet/lb.bicep' = {
 module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
   name: VMOPNsenseSecondaryName
   params: {
-    ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix}'
+    ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
     TempPassword: TempPassword
@@ -300,7 +300,6 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
 module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
   name: VMOPNsensePrimaryName
   params: {
-    ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP}'
     OPNScriptURI: OpnScriptURI
     ShellScriptName: ShellScriptName
     TempPassword: TempPassword
@@ -312,6 +311,7 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     nsgId: nsgopnsense.outputs.nsgID
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
+        ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${opnSensePrimary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
   }
   dependsOn: [
     nsgopnsense
