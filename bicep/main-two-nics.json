@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1008.15138",
-      "templateHash": "6082419213929560514"
+      "templateHash": "5316297350353341129"
     }
   },
   "parameters": {
@@ -65,27 +65,31 @@
     },
     "OpnScriptURI": {
       "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/",
+      "defaultValue": "https://raw.githubusercontent.com/dmauser/opnazure/master/scripts/",
       "metadata": {
         "description": "URI for Custom OPN Script and Config"
       }
     },
     "ShellScriptName": {
       "type": "string",
-      "defaultValue": "gwlbconfig.sh",
+      "defaultValue": "configureopnsense.sh",
       "metadata": {
         "description": "Shell Script to be executed"
       }
     },
+    "ShellParameters": {
+      "type": "string",
+      "defaultValue": "configureopnsense.sh",
+      "metadata": {
+        "description": "Shell Script to be executed"
+      }
+    },    
     "DeployWindows": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
         "description": "Deploy Windows VM Trusted Subnet"
       }
-    },
-    "gwLbPip": {
-      "type": "string"
     }
   },
   "functions": [],
@@ -259,8 +263,17 @@
         "expressionEvaluationOptions": {
           "scope": "inner"
         },
-        "mode": "Incremental",
+        "mode": "Incremental",d
         "parameters": {
+          "ShellScriptParameters": {
+            "value": "[format('{0} TwoNics {1}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix)]"
+          },
+          "OPNScriptURI": {
+            "value": "[parameters('OpnScriptURI')]"
+          },
+          "ShellScriptName": {
+            "value": "[parameters('ShellScriptName')]"
+          },
           "TempPassword": {
             "value": "[parameters('TempPassword')]"
           },
@@ -293,7 +306,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1008.15138",
-              "templateHash": "11141351536928633828"
+              "templateHash": "12667569812746510160"
             }
           },
           "parameters": {
@@ -317,6 +330,15 @@
               "type": "string"
             },
             "virtualMachineSize": {
+              "type": "string"
+            },
+            "OPNScriptURI": {
+              "type": "string"
+            },
+            "ShellScriptName": {
+              "type": "string"
+            },
+            "ShellScriptParameters": {
               "type": "string"
             },
             "nsgId": {
@@ -375,6 +397,27 @@
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', variables('trustedNicName'))]",
                 "[resourceId('Microsoft.Resources/deployments', variables('untrustedNicName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2015-06-15",
+              "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "publisher": "Microsoft.OSTCExtensions",
+                "type": "CustomScriptForLinux",
+                "typeHandlerVersion": "1.4",
+                "autoUpgradeMinorVersion": false,
+                "settings": {
+                  "fileUris": [
+                    "[format('{0}{1}', parameters('OPNScriptURI'), parameters('ShellScriptName'))]"
+                  ],
+                  "commandToExecute": "[format('sh {0} {1}', parameters('ShellScriptName'), parameters('ShellScriptParameters'))]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', parameters('virtualMachineName'))]"
               ]
             },
             {
@@ -584,80 +627,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', variables('networkSecurityGroupName'))]",
         "[resourceId('Microsoft.Resources/deployments', variables('publicIPAddressName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-06-01",
-      "name": "CustomScript",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "ScriptName": {
-            "value": "CustomScript"
-          },
-          "ShellScriptParameters": {
-            "value": "[format('{0} {1} {2}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2020-11-01').addressPrefix, parameters('gwLbPip'))]"
-          },
-          "OPNScriptURI": {
-            "value": "[parameters('OpnScriptURI')]"
-          },
-          "ShellScriptName": {
-            "value": "[parameters('ShellScriptName')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.4.1008.15138",
-              "templateHash": "6657568106137583354"
-            }
-          },
-          "parameters": {
-            "OPNScriptURI": {
-              "type": "string"
-            },
-            "ShellScriptName": {
-              "type": "string"
-            },
-            "ShellScriptParameters": {
-              "type": "string"
-            },
-            "ScriptName": {
-              "type": "string"
-            }
-          },
-          "functions": [],
-          "resources": [
-            {
-              "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2015-06-15",
-              "name": "[parameters('ScriptName')]",
-              "location": "[resourceGroup().location]",
-              "properties": {
-                "publisher": "Microsoft.OSTCExtensions",
-                "type": "CustomScriptForLinux",
-                "typeHandlerVersion": "1.4",
-                "autoUpgradeMinorVersion": false,
-                "settings": {
-                  "fileUris": [
-                    "[format('{0}{1}', parameters('OPNScriptURI'), parameters('ShellScriptName'))]"
-                  ],
-                  "commandToExecute": "[format('sh {0} {1}', parameters('ShellScriptName'), parameters('ShellScriptParameters'))]"
-                }
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', parameters('virtualMachineName'))]"
       ]
     },
     {

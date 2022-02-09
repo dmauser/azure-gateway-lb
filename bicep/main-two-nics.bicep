@@ -29,15 +29,13 @@ param existingTrustedSubnet string
 param PublicIPAddressSku string = 'Standard'
 
 @sys.description('URI for Custom OPN Script and Config')
-param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/'
+param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/opnazure/master/scripts/'
 
 @sys.description('Shell Script to be executed')
-param ShellScriptName string = 'gwlbconfig.sh'
+param ShellScriptName string = 'configureopnsense.sh'
 
 @sys.description('Deploy Windows VM Trusted Subnet')
 param DeployWindows bool = false
-
-param gwLbPip string
 
 // Variables
 var publicIPAddressName = '${virtualMachineName}-PublicIP'
@@ -112,6 +110,9 @@ resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-11-01' ex
 module opnSense 'modules/VM/opnsense-vm.bicep' = {
   name: virtualMachineName
   params: {
+    ShellScriptParameters: '${OpnScriptURI} TwoNics ${trustedSubnet.properties.addressPrefix}'
+    OPNScriptURI: OpnScriptURI
+    ShellScriptName: ShellScriptName
     TempPassword: TempPassword
     TempUsername: TempUsername
     trustedSubnetId: trustedSubnet.id
@@ -125,22 +126,6 @@ module opnSense 'modules/VM/opnsense-vm.bicep' = {
     nsgappgwsubnet
   ]
 }
-
-//VM Extension
-module vmext 'modules/VM/vmext.bicep' = {
-  name: 'CustomScript'
-  params: {
-    ScriptName: 'CustomScript'
-    ShellScriptParameters: '${OpnScriptURI} ${trustedSubnet.properties.addressPrefix} ${gwLbPip}'
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
-
-  }
-  dependsOn: [
-    opnSense
-  ]
-}
-
 
 // Windows11 Client Resources
 module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {

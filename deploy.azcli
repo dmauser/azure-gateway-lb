@@ -94,20 +94,26 @@ az network vnet create --resource-group $rg --name provider-vnet --location $loc
 az network vnet subnet create --name internal --resource-group $rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
 
 # 2) Enable Gateway LB 
-az network lb create -g $rg ---name provider-gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
-az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '901' --lb--name provider-gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
-az network lb probe create -g $rg --lb--name provider-gwlb --name sshprobe --protocol tcp --port 22   
-az network lb rule create -g $rg --lb--name provider-gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
+az network lb create -g $rg --name provider-gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
+az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '801' --lb-name provider-gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
+az network lb probe create -g $rg --lb-name provider-gwlb --name sshprobe --protocol tcp --port 22   
+az network lb rule create -g $rg --lb-name provider-gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
 # 3) Deploy both OPNsense NVA (work on this)
-gwlbpip=$(az network lb show -g $rg ---name provider-gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
+gwlbpip=$(az network lb show -g $rg --name provider-gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
+
+OpnScriptURI="https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/"
+ShellScriptName="gwlbconfig.sh"
+ShellParameters=([1]=$gwlbpip [2]=$ShellScriptName)
+
 az deployment group create --name $nva1-$RANDOM --resource-group $rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/opnazure/master/ARM/main-two-nics.json" \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva1 TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
+
 # 4) Attach NVA behind GB-LB:
-az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb--name provider-gwlb --output none
+az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb-name provider-gwlb --output none
 
 # ***OPNSense UI*** 
 # -> Interfaces -> Other 

@@ -4,13 +4,12 @@ param backendAddressPools array
 param loadBalancingRules array
 param outboundRules array = []
 param probe array
-param skuname string
 
 resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
   name: lbName
   location: resourceGroup().location
   sku: {
-    name: skuname
+    name: 'Gateway'
     tier: 'Regional'
   }
   properties:{
@@ -23,3 +22,4 @@ resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
 }
 
 output backendAddressPools array = lb.properties.backendAddressPools
+output frontendIPConfigurations array = lb.properties
