@@ -29,7 +29,7 @@ param existingTrustedSubnet string
 param PublicIPAddressSku string = 'Standard'
 
 @sys.description('URI for Custom OPN Script and Config')
-param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts'
+param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/'
 
 @sys.description('Shell Script to be executed')
 param ShellScriptName string = 'configureopnsense.sh'
