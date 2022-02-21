@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1272.37030",
-      "templateHash": "5497387244723294306"
+      "templateHash": "13646390523974091477"
     }
   },
   "parameters": {
@@ -86,16 +86,18 @@
     }
   },
   "variables": {
-    "VMOPNsensePrimaryName": "[format('{0}-Primary', parameters('virtualMachineName'))]",
-    "VMOPNsenseSecondaryName": "[format('{0}-Secondary', parameters('virtualMachineName'))]",
-    "publicIPAddressName": "[format('{0}-PublicIP', parameters('virtualMachineName'))]",
+    "VMOPNsensePrimaryName": "[format('{0}-primary', parameters('virtualMachineName'))]",
+    "VMOPNsenseSecondaryName": "[format('{0}-secondary', parameters('virtualMachineName'))]",
+    "publicIPAddressName": "[format('{0}-pip', variables('externalLoadBalanceName'))]",
     "networkSecurityGroupName": "[format('{0}-NSG', parameters('virtualMachineName'))]",
     "externalLoadBalanceName": "provider-nva-elb",
     "externalLoadBalanceFIPConfName": "FW",
-    "externalLoadBalanceBAPName": "OPNSense",
+    "externalLoadBalanceBAPName": "OPNsense",
     "externalLoadBalanceProbeName": "HTTPs",
     "externalLoadBalancingRuleName": "WEB",
     "externalLoadBalanceOutRuleName": "OutBound-OPNSense",
+    "externalLoadBalanceNatRuleName1": "primary-nva-mgmt",
+    "externalLoadBalanceNatRuleName2": "scondary-nva-mgmt",
     "internalLoadBalanceName": "provider-nva-glb",
     "internalLoadBalanceFIPConfName": "FW",
     "internalLoadBalanceBAPName": "OPNSense",
@@ -330,6 +332,32 @@
               }
             ]
           },
+          "inboundNatRules": {
+            "value": [
+              {
+                "name": "[variables('externalLoadBalanceNatRuleName1')]",
+                "properties": {
+                  "frontendPort": 50443,
+                  "backendPort": 443,
+                  "protocol": "Tcp",
+                  "frontendIPConfiguration": {
+                    "id": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('externalLoadBalanceName'), variables('externalLoadBalanceFIPConfName'))]"
+                  }
+                }
+              },
+              {
+                "name": "[variables('externalLoadBalanceNatRuleName2')]",
+                "properties": {
+                  "frontendPort": 50444,
+                  "backendPort": 443,
+                  "protocol": "Tcp",
+                  "frontendIPConfiguration": {
+                    "id": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('externalLoadBalanceName'), variables('externalLoadBalanceFIPConfName'))]"
+                  }
+                }
+              }
+            ]
+          },
           "outboundRules": {
             "value": [
               {
@@ -359,7 +387,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "18282746959154586367"
+              "templateHash": "10954973591215061144"
             }
           },
           "parameters": {
@@ -374,6 +402,10 @@
             },
             "loadBalancingRules": {
               "type": "array"
+            },
+            "inboundNatRules": {
+              "type": "array",
+              "defaultValue": []
             },
             "outboundRules": {
               "type": "array",
@@ -402,6 +434,7 @@
                 "backendAddressPools": "[parameters('backendAddressPools')]",
                 "loadBalancingRules": "[parameters('loadBalancingRules')]",
                 "probes": "[parameters('probe')]",
+                "inboundNatRules": "[parameters('inboundNatRules')]",
                 "outboundRules": "[parameters('outboundRules')]"
               }
             }
@@ -414,6 +447,10 @@
             "frontendIPConfigurations": {
               "type": "array",
               "value": "[reference(resourceId('Microsoft.Network/loadBalancers', parameters('lbName'))).frontendIPConfigurations]"
+            },
+            "inboundNatRules": {
+              "type": "array",
+              "value": "[reference(resourceId('Microsoft.Network/loadBalancers', parameters('lbName'))).inboundNatRules]"
             }
           }
         }
@@ -523,7 +560,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "18282746959154586367"
+              "templateHash": "10954973591215061144"
             }
           },
           "parameters": {
@@ -538,6 +575,10 @@
             },
             "loadBalancingRules": {
               "type": "array"
+            },
+            "inboundNatRules": {
+              "type": "array",
+              "defaultValue": []
             },
             "outboundRules": {
               "type": "array",
@@ -566,6 +607,7 @@
                 "backendAddressPools": "[parameters('backendAddressPools')]",
                 "loadBalancingRules": "[parameters('loadBalancingRules')]",
                 "probes": "[parameters('probe')]",
+                "inboundNatRules": "[parameters('inboundNatRules')]",
                 "outboundRules": "[parameters('outboundRules')]"
               }
             }
@@ -578,6 +620,10 @@
             "frontendIPConfigurations": {
               "type": "array",
               "value": "[reference(resourceId('Microsoft.Network/loadBalancers', parameters('lbName'))).frontendIPConfigurations]"
+            },
+            "inboundNatRules": {
+              "type": "array",
+              "value": "[reference(resourceId('Microsoft.Network/loadBalancers', parameters('lbName'))).inboundNatRules]"
             }
           }
         }
@@ -619,6 +665,9 @@
           },
           "InternalLoadBalancerBackendAddressPoolId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName'))).outputs.backendAddressPools.value[0].id]"
+          },
+          "ExternalloadBalancerInboundNatRulesId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('externalLoadBalanceName'))).outputs.inboundNatRules.value[1].id]"
           }
         },
         "template": {
@@ -628,7 +677,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "17666488834367681121"
+              "templateHash": "8787821126966459184"
             }
           },
           "parameters": {
@@ -659,11 +708,14 @@
             },
             "InternalLoadBalancerBackendAddressPoolId": {
               "type": "string"
+            },
+            "ExternalloadBalancerInboundNatRulesId": {
+              "type": "string"
             }
           },
           "variables": {
-            "untrustedNicName": "[format('{0}-Untrusted-NIC', parameters('virtualMachineName'))]",
-            "trustedNicName": "[format('{0}-Trusted-NIC', parameters('virtualMachineName'))]"
+            "untrustedNicName": "[format('{0}-untrusted-nic', parameters('virtualMachineName'))]",
+            "trustedNicName": "[format('{0}-trusted-nic', parameters('virtualMachineName'))]"
           },
           "resources": [
             {
@@ -737,6 +789,9 @@
                   },
                   "loadBalancerBackendAddressPoolId": {
                     "value": "[parameters('ExternalLoadBalancerBackendAddressPoolId')]"
+                  },
+                  "loadBalancerInboundNatRules": {
+                    "value": "[parameters('ExternalloadBalancerInboundNatRulesId')]"
                   }
                 },
                 "template": {
@@ -746,7 +801,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.4.1272.37030",
-                      "templateHash": "4366295941694257754"
+                      "templateHash": "15949200270209274035"
                     }
                   },
                   "parameters": {
@@ -764,6 +819,9 @@
                       "type": "string"
                     },
                     "loadBalancerBackendAddressPoolId": {
+                      "type": "string"
+                    },
+                    "loadBalancerInboundNatRules": {
                       "type": "string"
                     }
                   },
@@ -789,6 +847,11 @@
                               "loadBalancerBackendAddressPools": [
                                 {
                                   "id": "[parameters('loadBalancerBackendAddressPoolId')]"
+                                }
+                              ],
+                              "loadBalancerInboundNatRules": [
+                                {
+                                  "id": "[parameters('loadBalancerInboundNatRules')]"
                                 }
                               ]
                             }
@@ -970,6 +1033,9 @@
           },
           "InternalLoadBalancerBackendAddressPoolId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName'))).outputs.backendAddressPools.value[0].id]"
+          },
+          "ExternalloadBalancerInboundNatRulesId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('externalLoadBalanceName'))).outputs.inboundNatRules.value[0].id]"
           }
         },
         "template": {
@@ -979,7 +1045,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "17666488834367681121"
+              "templateHash": "8787821126966459184"
             }
           },
           "parameters": {
@@ -1010,11 +1076,14 @@
             },
             "InternalLoadBalancerBackendAddressPoolId": {
               "type": "string"
+            },
+            "ExternalloadBalancerInboundNatRulesId": {
+              "type": "string"
             }
           },
           "variables": {
-            "untrustedNicName": "[format('{0}-Untrusted-NIC', parameters('virtualMachineName'))]",
-            "trustedNicName": "[format('{0}-Trusted-NIC', parameters('virtualMachineName'))]"
+            "untrustedNicName": "[format('{0}-untrusted-nic', parameters('virtualMachineName'))]",
+            "trustedNicName": "[format('{0}-trusted-nic', parameters('virtualMachineName'))]"
           },
           "resources": [
             {
@@ -1088,6 +1157,9 @@
                   },
                   "loadBalancerBackendAddressPoolId": {
                     "value": "[parameters('ExternalLoadBalancerBackendAddressPoolId')]"
+                  },
+                  "loadBalancerInboundNatRules": {
+                    "value": "[parameters('ExternalloadBalancerInboundNatRulesId')]"
                   }
                 },
                 "template": {
@@ -1097,7 +1169,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.4.1272.37030",
-                      "templateHash": "4366295941694257754"
+                      "templateHash": "15949200270209274035"
                     }
                   },
                   "parameters": {
@@ -1115,6 +1187,9 @@
                       "type": "string"
                     },
                     "loadBalancerBackendAddressPoolId": {
+                      "type": "string"
+                    },
+                    "loadBalancerInboundNatRules": {
                       "type": "string"
                     }
                   },
@@ -1140,6 +1215,11 @@
                               "loadBalancerBackendAddressPools": [
                                 {
                                   "id": "[parameters('loadBalancerBackendAddressPoolId')]"
+                                }
+                              ],
+                              "loadBalancerInboundNatRules": [
+                                {
+                                  "id": "[parameters('loadBalancerInboundNatRules')]"
                                 }
                               ]
                             }
