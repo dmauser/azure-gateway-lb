@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.4.1272.37030",
-      "templateHash": "13646390523974091477"
+      "templateHash": "3774980290455661584"
     }
   },
   "parameters": {
@@ -292,33 +292,6 @@
               }
             ]
           },
-          "loadBalancingRules": {
-            "value": [
-              {
-                "name": "[variables('externalLoadBalancingRuleName')]",
-                "properties": {
-                  "frontendPort": 443,
-                  "backendPort": 443,
-                  "protocol": "Tcp",
-                  "frontendIPConfiguration": {
-                    "id": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('externalLoadBalanceName'), variables('externalLoadBalanceFIPConfName'))]"
-                  },
-                  "disableOutboundSnat": true,
-                  "backendAddressPool": {
-                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('externalLoadBalanceName'), variables('externalLoadBalanceBAPName'))]"
-                  },
-                  "backendAddressPools": [
-                    {
-                      "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('externalLoadBalanceName'), variables('externalLoadBalanceBAPName'))]"
-                    }
-                  ],
-                  "probe": {
-                    "id": "[resourceId('Microsoft.Network/loadBalancers/probes', variables('externalLoadBalanceName'), variables('externalLoadBalanceProbeName'))]"
-                  }
-                }
-              }
-            ]
-          },
           "probe": {
             "value": [
               {
@@ -387,7 +360,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "10954973591215061144"
+              "templateHash": "12201754322624990976"
             }
           },
           "parameters": {
@@ -401,7 +374,8 @@
               "type": "array"
             },
             "loadBalancingRules": {
-              "type": "array"
+              "type": "array",
+              "defaultValue": []
             },
             "inboundNatRules": {
               "type": "array",
@@ -560,7 +534,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.4.1272.37030",
-              "templateHash": "10954973591215061144"
+              "templateHash": "12201754322624990976"
             }
           },
           "parameters": {
@@ -574,7 +548,8 @@
               "type": "array"
             },
             "loadBalancingRules": {
-              "type": "array"
+              "type": "array",
+              "defaultValue": []
             },
             "inboundNatRules": {
               "type": "array",

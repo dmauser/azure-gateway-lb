@@ -1,7 +1,7 @@
 param lbName string
 param frontendIPConfigurations array
 param backendAddressPools array
-param loadBalancingRules array
+param loadBalancingRules array = []
 param inboundNatRules array = []
 param outboundRules array = []
 param probe array

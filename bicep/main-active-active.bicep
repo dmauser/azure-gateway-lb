@@ -141,31 +141,6 @@ module elb 'modules/vnet/lb.bicep' = {
         name: externalLoadBalanceBAPName
       }
     ]
-    loadBalancingRules: [
-      {
-        name: externalLoadBalancingRuleName
-        properties: {
-          frontendPort: 443
-          backendPort: 443
-          protocol: 'Tcp'
-          frontendIPConfiguration: {
-            id: resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', externalLoadBalanceName, externalLoadBalanceFIPConfName)
-          }
-          disableOutboundSnat: true
-          backendAddressPool: {
-            id: resourceId('Microsoft.Network/loadBalancers/backendAddressPools', externalLoadBalanceName, externalLoadBalanceBAPName)
-          }
-          backendAddressPools: [
-            {
-              id: resourceId('Microsoft.Network/loadBalancers/backendAddressPools', externalLoadBalanceName, externalLoadBalanceBAPName)
-            }
-          ]
-          probe: {
-            id: resourceId('Microsoft.Network/loadBalancers/probes', externalLoadBalanceName, externalLoadBalanceProbeName)
-          }
-        }
-      }
-    ]
     probe: [
       {
         name: externalLoadBalanceProbeName
