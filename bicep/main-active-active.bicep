@@ -42,17 +42,17 @@ var VMOPNsensePrimaryName = '${virtualMachineName}-Primary'
 var VMOPNsenseSecondaryName = '${virtualMachineName}-Secondary'
 var publicIPAddressName = '${virtualMachineName}-PublicIP'
 var networkSecurityGroupName = '${virtualMachineName}-NSG'
-var externalLoadBalanceName = 'External-LoadBalance'
+var externalLoadBalanceName = 'provider-nva-elb'
 var externalLoadBalanceFIPConfName = 'FW'
 var externalLoadBalanceBAPName = 'OPNSense'
 var externalLoadBalanceProbeName = 'HTTPs'
 var externalLoadBalancingRuleName = 'WEB'
 var externalLoadBalanceOutRuleName = 'OutBound-OPNSense'
-var internalLoadBalanceName = 'Internal-LoadBalance'
+var internalLoadBalanceName = 'provider-nva-glb'
 var internalLoadBalanceFIPConfName = 'FW'
 var internalLoadBalanceBAPName = 'OPNSense'
 var internalLoadBalanceProbeName = 'HTTPs'
-var internalLoadBalancingRuleName = 'Internal-HA-Port-Rule'
+var internalLoadBalancingRuleName = 'GWLB-HA-Port-Rule'
 
 var winvmName = 'VM-Win11Client'
 var winvmnetworkSecurityGroupName = '${winvmName}-NSG'
@@ -279,9 +279,6 @@ module ilb 'modules/vnet/lb.bicep' = {
 module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
   name: VMOPNsenseSecondaryName
   params: {
-    ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
     TempPassword: TempPassword
     TempUsername: TempUsername
     trustedSubnetId: trustedSubnet.id
@@ -300,8 +297,6 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
 module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
   name: VMOPNsensePrimaryName
   params: {
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
     TempPassword: TempPassword
     TempUsername: TempUsername
     trustedSubnetId: trustedSubnet.id
@@ -311,7 +306,35 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     nsgId: nsgopnsense.outputs.nsgID
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
-        ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${opnSensePrimary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
+        
+  }
+  dependsOn: [
+    nsgopnsense
+    opnSenseSecondary
+  ]
+}
+
+module opnSensePrimaryScript 'modules/VM/vmext.bicep' = {
+  name: '${VMOPNsensePrimaryName}-Script'
+  params: {
+    virtualMachineName: VMOPNsensePrimaryName
+    OPNScriptURI: OpnScriptURI
+    ShellScriptName: ShellScriptName
+    ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${opnSensePrimary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
+  }
+  dependsOn: [
+    nsgopnsense
+    opnSensePrimary
+  ]
+}
+
+module opnSenseScondaryScript 'modules/VM/vmext.bicep' = {
+  name: '${VMOPNsenseSecondaryName}-Script'
+  params: {
+    virtualMachineName: VMOPNsenseSecondaryName
+    OPNScriptURI: OpnScriptURI
+    ShellScriptName: ShellScriptName
+    ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
   }
   dependsOn: [
     nsgopnsense
