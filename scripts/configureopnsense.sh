@@ -18,19 +18,17 @@ if [ "$2" = "Primary" ]; then
     sed -i "" "s/rrr.rrr.rrr.rrr/$6/" config-active-active-primary.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" config-active-active-primary.xml
     cp config-active-active-primary.xml /usr/local/etc/config.xml
-    cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
-    ifconfig hn0 mtu 4000
-    ifconfig hn1 mtu 4000
-    ifconfig vxlan0 down
-    ifconfig vxlan0 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10800 vxlanremoteport 10800
-    ifconfig vxlan0 up
-    ifconfig vxlan1 down
-    ifconfig vxlan1 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10801 vxlanremoteport 10801
-    ifconfig vxlan1 up
-    ifconfig bridge0 addm vxlan0
-    ifconfig bridge0 addm vxlan1
-    EOL
-    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure 
 elif [ "$2" = "Secondary" ]; then
     fetch $1config.xml
     fetch $1get_nic_gw.py
@@ -40,18 +38,17 @@ elif [ "$2" = "Secondary" ]; then
     sed -i "" "s/rrr.rrr.rrr.rrr/$5/" config.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" config.xml
     cp config.xml /usr/local/etc/config.xml
-    cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
-    ifconfig hn0 mtu 4000
-    ifconfig hn1 mtu 4000
-    ifconfig vxlan0 down
-    ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800
-    ifconfig vxlan0 up
-    ifconfig vxlan1 down
-    ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801
-    ifconfig vxlan1 up
-    ifconfig bridge0 addm vxlan0
-    ifconfig bridge0 addm vxlan1
-    EOL
+    echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
+    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure 
     chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 elif [ "$2" = "SingNic" ]; then
     fetch $1config-snic.xml
