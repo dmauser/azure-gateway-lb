@@ -80,7 +80,7 @@ az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScri
 
 ### Provider ###
 #Variables
-rg=gwlb-lab4
+rg=gwlb-lab2
 location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
