@@ -8,7 +8,7 @@ az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefaul
 
 # You can provision both Consumer and Provider in the same Subscription
 # In case you want to do it separated Subscription change your active subscription as shown
-az account set --subscription MSDN_Dmauser  #My personal MSDN Subscription
+az account set --subscription VSE-SUB  #My personal MSDN Subscription
 az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
 
 ### Consumer ###
@@ -80,7 +80,7 @@ az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScri
 
 ### Provider ###
 #Variables
-rg=gwlb-lab
+rg=gwlb-lab2
 location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
