@@ -7,11 +7,12 @@ param virtualMachineSize string
 param nsgId string = ''
 param ExternalLoadBalancerBackendAddressPoolId string
 param InternalLoadBalancerBackendAddressPoolId string
+param ExternalloadBalancerInboundNatRulesId string
 
-var untrustedNicName = '${virtualMachineName}-Untrusted-NIC'
-var trustedNicName = '${virtualMachineName}-Trusted-NIC'
+var untrustedNicName = '${virtualMachineName}-untrusted-nic'
+var trustedNicName = '${virtualMachineName}-trusted-nic'
 
-module untrustedNic '../vnet/privateniclb.bicep' = {
+module untrustedNic '../vnet/publicniclb.bicep' = {
   name: untrustedNicName
   params:{
     nicName: untrustedNicName
@@ -19,7 +20,8 @@ module untrustedNic '../vnet/privateniclb.bicep' = {
     enableIPForwarding: true
     nsgId: nsgId
     loadBalancerBackendAddressPoolId: ExternalLoadBalancerBackendAddressPoolId
-  }
+    loadBalancerInboundNatRules: ExternalloadBalancerInboundNatRulesId
+    }
 }
 
 module trustedNic '../vnet/privateniclb.bicep' = {

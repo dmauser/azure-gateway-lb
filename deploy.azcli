@@ -80,7 +80,7 @@ az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScri
 
 ### Provider ###
 #Variables
-rg=gwlb-lab2
+rg=gwlb-lab3
 location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
@@ -110,7 +110,6 @@ az deployment group create --name nva-deploy-$RANDOM --resource-group $rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-active-active.json" \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
-
 
 # 4) Attach NVA behind GB-LB:
 az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb-name provider-gwlb --output none

@@ -1,0 +1,236 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "resources": [
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "apiVersion": "2021-02-01",
+            "name": "provider-nva-elb",
+            "location": "centralus",
+            "dependsOn": [],
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "properties": {
+                "provisioningState": "Succeeded",
+                "resourceGuid": "aea688ce-994e-423f-9130-9b75bde86751",
+                "frontendIPConfigurations": [
+                    {
+                        "name": "FW",
+                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/frontendIPConfigurations/FW",
+                        "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                        "type": "Microsoft.Network/loadBalancers/frontendIPConfigurations",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/publicIPAddresses/nva-PublicIP"
+                            },
+                            "outboundRules": [
+                                {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/outboundRules/OutBound-OPNSense"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "OPNSense",
+                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/backendAddressPools/OPNSense",
+                        "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "loadBalancerBackendAddresses": [
+                                {
+                                    "name": "gwlb-lab3_nva-Secondary-Untrusted-NICipconfig1",
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/backendAddressPools/OPNSense/loadBalancerBackendAddresses/gwlb-lab3_nva-Secondary-Untrusted-NICipconfig1",
+                                    "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                                    "properties": {
+                                        "provisioningState": "Succeeded",
+                                        "networkInterfaceIPConfiguration": {
+                                            "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Secondary-Untrusted-NIC/ipConfigurations/ipconfig1"
+                                        }
+                                    },
+                                    "type": "Microsoft.Network/loadBalancers/backendAddressPools/loadBalancerBackendAddresses"
+                                },
+                                {
+                                    "name": "gwlb-lab3_nva-Primary-Untrusted-NICipconfig1",
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/backendAddressPools/OPNSense/loadBalancerBackendAddresses/gwlb-lab3_nva-Primary-Untrusted-NICipconfig1",
+                                    "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                                    "properties": {
+                                        "provisioningState": "Succeeded",
+                                        "networkInterfaceIPConfiguration": {
+                                            "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Primary-Untrusted-NIC/ipConfigurations/ipconfig1"
+                                        }
+                                    },
+                                    "type": "Microsoft.Network/loadBalancers/backendAddressPools/loadBalancerBackendAddresses"
+                                }
+                            ],
+                            "outboundRules": [
+                                {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/outboundRules/OutBound-OPNSense"
+                                }
+                            ],
+                            "backendIPConfigurations": [
+                                {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Secondary-Untrusted-NIC/ipConfigurations/ipconfig1"
+                                },
+                                {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Primary-Untrusted-NIC/ipConfigurations/ipconfig1"
+                                }
+                            ]
+                        },
+                        "type": "Microsoft.Network/loadBalancers/backendAddressPools"
+                    }
+                ],
+                "loadBalancingRules": [],
+                "probes": [
+                    {
+                        "name": "HTTPs",
+                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/probes/HTTPs",
+                        "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "protocol": "Tcp",
+                            "port": 443,
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 2
+                        },
+                        "type": "Microsoft.Network/loadBalancers/probes"
+                    }
+                ],
+                "inboundNatRules": [
+                    {
+                        "name": "primary-nva-mgmt",
+                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/inboundNatRules/primary-nva-mgmt",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/frontendIPConfigurations/FW"
+                            },
+                            "backendPort": 443,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 4,
+                            "protocol": "TCP",
+                            "enableTcpReset": false,
+                            "frontendPort": 50443,
+                            "backendIPConfiguration": {
+                                "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Primary-Untrusted-NIC/ipConfigurations/ipconfig1"
+                            }
+                        }
+                    }
+                ],
+                "outboundRules": [
+                    {
+                        "name": "OutBound-OPNSense",
+                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/outboundRules/OutBound-OPNSense",
+                        "etag": "W/\"416aab80-9f42-4512-a9c2-902f4440498e\"",
+                        "type": "Microsoft.Network/loadBalancers/outboundRules",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "allocatedOutboundPorts": 0,
+                            "protocol": "All",
+                            "enableTcpReset": true,
+                            "idleTimeoutInMinutes": 4,
+                            "backendAddressPool": {
+                                "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/backendAddressPools/OPNSense"
+                            },
+                            "frontendIPConfigurations": [
+                                {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/frontendIPConfigurations/FW"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "inboundNatPools": []
+            },
+            "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb"
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "NicUpdate-9379b516-8b2c-420b-91ae-24ab3ab63932-20220221160124",
+            "dependsOn": [
+                "provider-nva-elb"
+            ],
+            "properties": {
+                "expressionEvaluationOptions": {
+                    "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {},
+                "template": {
+                    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "apiVersion": "2021-03-01",
+                            "type": "Microsoft.Network/networkInterfaces",
+                            "name": "nva-Primary-Untrusted-NIC",
+                            "location": "centralus",
+                            "properties": {
+                                "provisioningState": "Succeeded",
+                                "resourceGuid": "f526353e-a2a4-4140-8db7-a49387359b5a",
+                                "ipConfigurations": [
+                                    {
+                                        "name": "ipconfig1",
+                                        "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkInterfaces/nva-Primary-Untrusted-NIC/ipConfigurations/ipconfig1",
+                                        "etag": "W/\"78b2d2ba-2b72-403f-9901-bae1ea6ffd31\"",
+                                        "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
+                                        "properties": {
+                                            "provisioningState": "Succeeded",
+                                            "privateIPAddress": "10.0.0.5",
+                                            "privateIPAllocationMethod": "Dynamic",
+                                            "subnet": {
+                                                "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/virtualNetworks/provider-vnet/subnets/external"
+                                            },
+                                            "primary": true,
+                                            "privateIPAddressVersion": "IPv4",
+                                            "loadBalancerBackendAddressPools": [
+                                                {
+                                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/backendAddressPools/OPNSense"
+                                                }
+                                            ],
+                                            "loadBalancerInboundNatRules": [
+                                                {
+                                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/loadBalancers/provider-nva-elb/inboundNatRules/primary-nva-mgmt"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ],
+                                "dnsSettings": {
+                                    "dnsServers": [],
+                                    "appliedDnsServers": [],
+                                    "internalDomainNameSuffix": "lppau1ixwgmenmlmx1z4f1wgvf.gx.internal.cloudapp.net"
+                                },
+                                "macAddress": "00-22-48-48-2E-9F",
+                                "enableAcceleratedNetworking": false,
+                                "vnetEncryptionSupported": false,
+                                "enableIPForwarding": true,
+                                "networkSecurityGroup": {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Network/networkSecurityGroups/nva-NSG"
+                                },
+                                "primary": true,
+                                "virtualMachine": {
+                                    "id": "/subscriptions/96799577-30b5-4a07-b0d3-ca5b40c5c05d/resourceGroups/gwlb-lab3/providers/Microsoft.Compute/virtualMachines/nva-Primary"
+                                },
+                                "hostedWorkloads": [],
+                                "tapConfigurations": [],
+                                "nicType": "Standard"
+                            },
+                            "tags": {}
+                        }
+                    ],
+                    "outputs": {}
+                }
+            },
+            "resourceGroup": "gwlb-lab3"
+        }
+    ]
+}

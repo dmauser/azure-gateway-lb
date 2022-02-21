@@ -38,16 +38,18 @@ param ShellScriptName string = 'configureopnsense.sh'
 param DeployWindows bool = false
 
 // Variables
-var VMOPNsensePrimaryName = '${virtualMachineName}-Primary'
-var VMOPNsenseSecondaryName = '${virtualMachineName}-Secondary'
-var publicIPAddressName = '${virtualMachineName}-PublicIP'
+var VMOPNsensePrimaryName = '${virtualMachineName}-primary'
+var VMOPNsenseSecondaryName = '${virtualMachineName}-secondary'
+var publicIPAddressName = '${externalLoadBalanceName}-pip'
 var networkSecurityGroupName = '${virtualMachineName}-NSG'
 var externalLoadBalanceName = 'provider-nva-elb'
 var externalLoadBalanceFIPConfName = 'FW'
-var externalLoadBalanceBAPName = 'OPNSense'
+var externalLoadBalanceBAPName = 'OPNsense'
 var externalLoadBalanceProbeName = 'HTTPs'
 var externalLoadBalancingRuleName = 'WEB'
 var externalLoadBalanceOutRuleName = 'OutBound-OPNSense'
+var externalLoadBalanceNatRuleName1 = 'primary-nva-mgmt'
+var externalLoadBalanceNatRuleName2 = 'scondary-nva-mgmt'
 var internalLoadBalanceName = 'provider-nva-glb'
 var internalLoadBalanceFIPConfName = 'FW'
 var internalLoadBalanceBAPName = 'OPNSense'
@@ -175,6 +177,30 @@ module elb 'modules/vnet/lb.bicep' = {
         }
       }
     ]
+    inboundNatRules: [
+      {
+        name: externalLoadBalanceNatRuleName1
+        properties: {
+          frontendPort: 50443
+          backendPort: 443
+          protocol: 'Tcp'
+          frontendIPConfiguration: {
+            id: resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', externalLoadBalanceName, externalLoadBalanceFIPConfName)
+          }
+        }
+      }
+      {
+        name: externalLoadBalanceNatRuleName2
+        properties: {
+          frontendPort: 50444
+          backendPort: 443
+          protocol: 'Tcp'
+          frontendIPConfiguration: {
+            id: resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', externalLoadBalanceName, externalLoadBalanceFIPConfName)
+          }
+        }
+      }
+    ]
     outboundRules: [
       {
         name: externalLoadBalanceOutRuleName
@@ -288,6 +314,7 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
     nsgId: nsgopnsense.outputs.nsgID
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
+    ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[1].id
   }
   dependsOn: [
     nsgopnsense
@@ -306,7 +333,7 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     nsgId: nsgopnsense.outputs.nsgID
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
-        
+    ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[0].id
   }
   dependsOn: [
     nsgopnsense
