@@ -113,7 +113,6 @@ az deployment group create --name $nva-deploy-$RANDOM --resource-group $provider
 # It is recommended you to manage only primary and syncronize configuration with secondary.
 # Default username is: root and default password is: opnsense
 
-
 # 7) Deploy Bastion
 az network vnet subnet create --resource-group $provider_rg --name AzureBastionSubnet --vnet-name provider-vnet --address-prefixes $providerbastionsubnet --output none
 az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
