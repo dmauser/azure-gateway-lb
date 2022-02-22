@@ -9,24 +9,24 @@
 # Check if Primary or Secondary Server to setup Firewal Sync
 # Note: Firewall Sync should only be setup in the Primary Server
 if [ "$2" = "Primary" ]; then
-    fetch $1config-active-active-primary.xml
+    fetch $1glb-config-active-active-primary.xml
     fetch $1get_nic_gw.py
     gwip=$(python get_nic_gw.py $3)
-    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config-active-active-primary.xml
-    sed -i "" "s/xxx.xxx.xxx.xxx/$4/" config-active-active-primary.xml
-    sed -i "" "s/lll.lll.lll.lll/$5/" config-active-active-primary.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$6/" config-active-active-primary.xml
+    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config-active-active-primary.xml
+    sed -i "" "s/xxx.xxx.xxx.xxx/$4/" glb-config-active-active-primary.xml
+    sed -i "" "s/lll.lll.lll.lll/$5/" glb-config-active-active-primary.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$6/" glb-config-active-active-primary.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" glb-config-active-active-primary.xml
-    cp config-active-active-primary.xml /usr/local/etc/config.xml
+    cp glb-config-active-active-primary.xml /usr/local/etc/config.xml
 elif [ "$2" = "Secondary" ]; then
-    fetch $1config.xml
+    fetch $1glb-config.xml
     fetch $1get_nic_gw.py
     gwip=$(python get_nic_gw.py $3)
-    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
-    sed -i "" "s/lll.lll.lll.lll/$4/" config.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" config.xml
+    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config.xml
+    sed -i "" "s/lll.lll.lll.lll/$4/" glb-config.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" glb-config.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" glb-config.xml
-    cp config.xml /usr/local/etc/config.xml
+    cp glb-config.xml /usr/local/etc/config.xml
 elif [ "$2" = "SingNic" ]; then
     fetch $1config-snic.xml
     cp config-snic.xml /usr/local/etc/config.xml
