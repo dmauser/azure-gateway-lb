@@ -108,6 +108,12 @@ az deployment group create --name $nva-deploy-$RANDOM --resource-group $provider
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
+# Password specified above is not used, only during deployment. 
+# After deployment you can access OPNsense by using elb Public IP on port 50443 (first instance), 50444 (secondary instance)
+# It is recommended you to manage only primary and syncronize configuration with secondary.
+# Default username is: root and default password is: opnsense
+
+
 # 7) Deploy Bastion
 az network vnet subnet create --resource-group $provider_rg --name AzureBastionSubnet --vnet-name provider-vnet --address-prefixes $providerbastionsubnet --output none
 az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
