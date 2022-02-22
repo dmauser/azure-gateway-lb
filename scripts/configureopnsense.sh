@@ -16,7 +16,7 @@ if [ "$2" = "Primary" ]; then
     sed -i "" "s/xxx.xxx.xxx.xxx/$4/" config-active-active-primary.xml
     sed -i "" "s/lll.lll.lll.lll/$5/" config-active-active-primary.xml
     sed -i "" "s/rrr.rrr.rrr.rrr/$6/" config-active-active-primary.xml
-    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" config-active-active-primary.xml
+    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" glb-config-active-active-primary.xml
     cp config-active-active-primary.xml /usr/local/etc/config.xml
 elif [ "$2" = "Secondary" ]; then
     fetch $1config.xml
@@ -25,7 +25,7 @@ elif [ "$2" = "Secondary" ]; then
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
     sed -i "" "s/lll.lll.lll.lll/$4/" config.xml
     sed -i "" "s/rrr.rrr.rrr.rrr/$5/" config.xml
-    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" config.xml
+    sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" glb-config.xml
     cp config.xml /usr/local/etc/config.xml
 elif [ "$2" = "SingNic" ]; then
     fetch $1config-snic.xml
