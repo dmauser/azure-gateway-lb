@@ -475,6 +475,54 @@
         <any/>
       </destination>
     </rule>
+      <rule>
+      <type>pass</type>
+      <interface>opt1</interface>
+      <ipprotocol>inet</ipprotocol>
+      <statetype>keep state</statetype>
+      <direction>in</direction>
+      <quick>1</quick>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <any>1</any>
+      </destination>
+      <updated>
+        <username>root@13.67.107.241</username>
+        <time>1636689217.8842</time>
+        <description>/firewall_rules_edit.php made changes</description>
+      </updated>
+      <created>
+        <username>root@13.67.107.241</username>
+        <time>1636689217.8842</time>
+        <description>/firewall_rules_edit.php made changes</description>
+      </created>
+    </rule>
+    <rule>
+      <type>pass</type>
+      <interface>opt2</interface>
+      <ipprotocol>inet</ipprotocol>
+      <statetype>keep state</statetype>
+      <direction>in</direction>
+      <quick>1</quick>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <any>1</any>
+      </destination>
+      <updated>
+        <username>root@13.67.107.241</username>
+        <time>1636688850.4264</time>
+        <description>/firewall_rules_edit.php made changes</description>
+      </updated>
+      <created>
+        <username>root@13.67.107.241</username>
+        <time>1636688850.4264</time>
+        <description>/firewall_rules_edit.php made changes</description>
+      </created>
+    </rule>
   </filter>
   <rrd>
     <enable/>
