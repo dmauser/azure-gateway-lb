@@ -104,7 +104,7 @@ az network lb rule create -g $provider_rg --lb-name provider-nva-glb --name hapo
 
 # 3) Deploy both OPNsense NVA (work on this)
 az deployment group create --name $nva-deploy-$RANDOM --resource-group $provider_rg \
---template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-active-active.json" \
+--template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/glb-active-active.json" \
 --parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
