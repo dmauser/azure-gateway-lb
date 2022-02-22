@@ -27,10 +27,10 @@ az group create --name $consumer_rg --location $consumer_location --output none
 az network vnet create --resource-group $consumer_rg --name consumer-vnet --location $consumer_location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
 
 # 2) #(Optional) UDR to restrict SSH access to Azure VMs from your Public IP only:
-az network nsg create --resource-group $consumer_rg --name nsg-default --location $consumer_location
+az network nsg create --resource-group $consumer_rg --name consumer-nsg --location $consumer_location
 az network nsg rule create \
     --resource-group $consumer_rg \
-    --nsg-name nsg-default \
+    --nsg-name consumer-nsg \
     --name AllowSSHRule \
     --direction Inbound \
     --priority 100 \
@@ -44,7 +44,7 @@ az network nsg rule create \
     --output none
 az network nsg rule create \
     --resource-group $consumer_rg \
-    --nsg-name nsg-default \
+    --nsg-name consumer-nsg \
     --name allow-http \
     --direction Inbound \
     --priority  101 \
@@ -56,7 +56,7 @@ az network nsg rule create \
     --protocol Tcp \
     --description "Allow inbound HTTP" \
     --output none
-az network vnet subnet update --name vmsubnet --resource-group $consumer_rg --vnet-name consumer-vnet --network-security-group nsg-default --output none
+az network vnet subnet update --name vmsubnet --resource-group $consumer_rg --vnet-name consumer-vnet --network-security-group consumer-nsg --output none
 
 # 3) Create Public Load Balancer
 az network lb create -g $consumer_rg --name consumer-elb --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
@@ -219,9 +219,9 @@ $consumer_rg=
 $consumer_location=
 $provider_rg=
 $provider_location=
-# 1) Delete Bastion
-az network bastion delete --resource-group $consumer_rg --name consumer-bastion --no-wait
-az network bastion delete --resource-group $provider_rg --name provider-bastion --no-wait
+# 1) Delete Bastion (later move this process to Bicep)
+az network bastion delete --resource-group $consumer_rg --name consumer-bastion
+az network bastion delete --resource-group $provider_rg --name provider-bastion 
 # 2) Add Bastion
 az network bastion create --name provider-bastion --sku basic --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --no-wait
 az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location --no-wait
