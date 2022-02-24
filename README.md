@@ -18,7 +18,7 @@ The goal of this lab is to allow you to play with Gateway Load Balancer (GLB) an
 
 As part of the lab provisioning, two environments will be created. One is the consumer, with a simple web application exposed over an external (public) load balancer, and another for the provider using an NVA, who will be responsible for the traffic inspection.
 
-GLB will be using a pair of OPNsenses (open-source Firewall) as its backend, and we will explore some basic filtering capabilities initially and other advanced capabilities like IDS.
+GLB will be using a pair of open-source OPNsense NVAs as its backend, and we will explore some basic filtering capabilities initially and other advanced capabilities like IDS.
 
 **Note:** for more information on OPNsense provisioning in Azure, check a dedicated repo with some other deployments: [OPNSense in Azure using bootstrap](https://github.com/dmauser/opnazure)
 
@@ -102,10 +102,10 @@ Here are some details how that VXLAN overlay is built for internal and external 
 
 ## ARM Template
 
-Before going over all the lab steps, it is important to share that you can deploy this solution in your environment by using an ARM Templa(te available. This ARM Template assumes you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External), and Trusted (or Internal).  However, it is recommended you go over the lab to understand better all the component involved and it will help you to succeed on the provisioning process.
+Before going over all the lab steps, it is important to share that you can deploy this solution in your environment by using an ARM Template available. This ARM Template assumes you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External), and Trusted (or Internal).  However, it is recommended you go over the lab to understand better all the component involved and it will help you to succeed on the provisioning process.
 
-[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fopnazure%2Fmaster%2FARM%2Fmain-newvnet-two-nics.json)
-[![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fopnazure%2Fmaster%2FARM%2Fmain-newvnet-two-nics.json)
+[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
+[![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
 
 Also review the [Considerations after provisioning provider NVAs:](#considerations-after-provisioning-provider-nvas) to properly access and managed provisioned NVAs.
 
