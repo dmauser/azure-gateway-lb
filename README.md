@@ -29,7 +29,7 @@ We assume you some a basic knowledge of what GLB is, if below some references to
 - **John Savill's video**: [Azure Gateway Load Balancer Deep Dive](https://www.youtube.com/watch?v=JLx7ZFzjdSs).
 - **Jose Moreno's deep dive article:** [What language does the Azure Gateway Load Balancer speak?](https://blog.cloudtrooper.net/2021/11/11/what-language-does-the-azure-gateway-load-balancer-speak/) . 
 
-## Network diagram
+## Lab Network diagram
 
 The network diagram below gives you a visualization of the components involved in this lab:
 
@@ -99,13 +99,23 @@ Here are some details how that VXLAN overlay is built for internal and external 
 - Consumer and Provider can be in different Azure Subscriptions or tenants.
 - At this time only External (Public) LB is supported to chain to the Gateway LB. Therefore, only North-South/South-North traffic patterns are supported.
 
+
+## ARM Template
+
+Before going over all the lab steps, it is important to share that you can deploy this solution in your environment by using an ARM Templa(te available. This ARM Template assumes you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External), and Trusted (or Internal).  However, it is recommended you go over the lab to understand better all the component involved and it will help you to succeed on the provisioning process.
+
+[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fopnazure%2Fmaster%2FARM%2Fmain-newvnet-two-nics.json)
+[![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fopnazure%2Fmaster%2FARM%2Fmain-newvnet-two-nics.json)
+
+Also review the [Considerations after provisioning provider NVAs:](#considerations-after-provisioning-provider-nvas) to properly access and managed provisioned NVAs.
+
 ## Deploy this solution
 
 On this lab you are going to deploy to deploy Consumer and Provider in totally different networks. In this demonstration both networks use the same address range (10.0.0.0/24) to proof that on GLB model provider side, where the inspection is done, is totally separated from the consumer side from networking perspective (no peerings between them). You can also provision both Consumer and Provider in the same Subscription or separated Subscription/Tenants.
 
 :point_right: **Note:** the commands below use bash variables format. Therefore, run them either over Linux with Azure CLI or Azure Cloud Shell Bash. Variables will fail over AZ CLI in PowerShell or windows command prompt.
 
-### Prerequisites
+### Lab prerequisites
 
 Azure CLI or Cloud Shell Bash can be used to deploy this solution.
 
@@ -243,7 +253,7 @@ az network public-ip create --resource-group $provider_rg --name provider-bastio
 az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 ```
 
-#### Few notes after provisioning provider NVAs:
+#### Considerations after provisioning provider NVAs:
 
 1. Password specified above is only used during deployment.
 2. After the deployment completes, you can access OPNsense by using provider-elb Public IP on port 50443 (first instance), 50444 (secondary instance).
@@ -251,8 +261,6 @@ az network bastion create --name provider-bastion --sku basic  --public-ip-addre
 4. Default username is: **root** and default password is: **opnsense** (**Please change the password**).
     - Because the deployment is made in HA (primary and secondary) NVAs, make sure to change the HA Configuration Synchronization Settings password too.
     ![](./media/opn-system-ha-settings.png)
-
-    
 
 ### Validate Deployment
 
@@ -335,14 +343,10 @@ On the process above by adding the chain between consumer-elb and provider-nva-g
 
 (coming soon)
 
-### Layer 7 (Inspection)
-
-(coming soon)
-
 ### Intrusion detection (IDS)
 
 (coming soon)
 
-### Transparent Proxy
+### Layer 7 (Inspection)
 
 (coming soon)

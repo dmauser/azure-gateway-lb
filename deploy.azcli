@@ -125,7 +125,16 @@ az network public-ip create --resource-group $provider_rg --name provider-bastio
 az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 
 
-# Chain Consumer ELB to Provider-GW (different subscriptions - Portal only works for the same subscription)
+#### Build a chain between consumer-elb and provider-nva-glb
+
+# Check current sub
+az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
+# Subscription where Provider (required only if provider is on different subscription)
+az account set --subscription <provider subscription>  # Change to your subscription name
+# Set Gateway Load Balancer (provider-nva-glb) frontend name resource ID as variable 
+glbfeid=$(az network lb frontend-ip show -g $provider_rg --lb-name provider-nva-glb --name FW --query id --output tsv)
+echo $glbfeid
+
 # Subscription where Consumer is (required only if consumer is on different subscription)
 az account set --subscription <consumer subscription>  # Change to your subscription name
 # Add chain between consumer-elb and provider-nva-glb
@@ -138,6 +147,7 @@ az network lb frontend-ip show -g $consumer_rg --name frontendip1 --lb-name cons
 
 # Remove chain between consumer-elb and provider-nva-glb
 az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb "" --output none
+
 
 # Connectivity Checks / Replace the Public IP listed below with your LB.
 # Get you LB Public IP:
@@ -180,11 +190,11 @@ tcpdump -n -i vxlan1 host 8.8.8.8
 
 
 # Recommended for savings
-# Set variables
-$consumer_rg=
-$consumer_location=
-$provider_rg=
-$provider_location=
+# Set variables (Replace the variables when needed)
+$consumer_rg=glb-lab
+$consumer_location=glb-lab
+$provider_rg=-glb-lab
+$provider_location=glb-lab
 # 1) Delete Bastion (later move this process to Bicep)
 az network bastion delete --resource-group $consumer_rg --name consumer-bastion
 az network bastion delete --resource-group $provider_rg --name provider-bastion 
