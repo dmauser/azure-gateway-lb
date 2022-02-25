@@ -12,6 +12,9 @@
     - [Consumer](#consumer)
     - [Provider](#provider)
 - [Traffic inspection](#traffic-inspection)
+    - [Layer 4](#layer-4-firewall)
+    - [Layer 7](#layer-7-inspection)
+    - [IDS](#intrusion-detection-ids)
 
 ## Introduction
 
@@ -76,18 +79,18 @@ The network diagram below gives you a visualization of the components involved i
 1) Internet client (1.1.1.1) issues a http request to 2.2.2.2
 2) Consumer ELB intercepts that traffic and forwards it to the Provider GLB. That is possible because Consumer ELB has a chain to the Provider ELB. Example:
 ![consumer-elb-provicer-glb-chain](./media/consumer-elb-chain.png)
-3) Provider GLB has a VXLAN overlay network to the NVA to be inspected. _Vxlan0 interface for the external traffic (Inbound from Internet)_.
+3) Provider GLB has a VXLAN overlay network to the NVA to be inspected. _Vxlan0 interface for the external traffic (Inbound from the Internet)_.
 4) After traffic gets inspected from NVA, traffic is sent back to the GLB. _Vxlan1 interface for the internal traffic_ (Outbound to the Consumer ELB).
 5) Provider GLB sends traffic back to the Consumer ELB.
 6) Consumer ELB delivers traffic back to the backend VM (consumer-vm).
 
 **Outbound traffic**
 
-1) Consumer-vm sends outbound traffic to the internet, for example: _curl ipconfig.io_
+1) Consumer-vm sends outbound traffic to the Internet, for example: _curl ipconfig.io_
 2) Consumer ELB intercepts the call and sends traffic to the Provider GLB.
 3) Provider GLB sends traffic to the NVA using _vxlan1 (internal)_.
-4) After traffic gets inspected by the NVA traffic sends it back to the Provider GLB using _vxlan0 (external)_.
-5) Provider GLB sends traffic back to the ELB and traffic is send out to the Internet.
+4) After traffic gets inspected by the NVA, it sends it back to the Provider GLB using _vxlan0 (external)_.
+5) Provider GLB sends traffic back to the ELB and then sends it out to the Internet.
 
 #### Inside VXLAN between GLB and backend NVA
 
@@ -102,7 +105,7 @@ Here are some details how that VXLAN overlay is built for internal and external 
 
 ## ARM Template
 
-Before going over all the lab steps, it is important to share that you can deploy this solution in your environment by using an ARM Template available. This ARM Template assumes you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External), and Trusted (or Internal).  However, it is recommended you go over the lab to understand better all the component involved and it will help you to succeed on the provisioning process.
+Before going over all the lab steps, you can deploy this solution in your environment using an ARM template. The available template below assumes that you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External) and Trusted (or Internal).  
 
 [![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
 [![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
@@ -111,13 +114,13 @@ Also review the [Considerations after provisioning provider NVAs:](#consideratio
 
 ## Deploy this solution
 
-On this lab you are going to deploy to deploy Consumer and Provider in totally different networks. In this demonstration both networks use the same address range (10.0.0.0/24) to proof that on GLB model provider side, where the inspection is done, is totally separated from the consumer side from networking perspective (no VNET peerings between them). You can also provision both Consumer and Provider in the same Subscription or separated Subscription/Tenants.
+In this lab, you will deploy the Consumer and Provider in totally different networks. In this demonstration, both networks use the same address range (10.0.0.0/24) to prove that the GLB model provider side, where the traffic inspection happens, is separated from the consumer side from a networking perspective (no VNET peerings between them or connections between them). You can also deploy both Consumer and Provider in the same Subscription or separated Subscription/Tenants and build the chain between them.
 
-:point_right: **Note:** the commands below use bash variables format. Therefore, run them either over Linux with Azure CLI or Azure Cloud Shell Bash. Variables will fail over AZ CLI in PowerShell or windows command prompt.
+:point_right: **Note:** The commands below use the bash variables format. Therefore, run them over Linux with Azure CLI or Azure Cloud Shell Bash. Variables will fail over AZ CLI in PowerShell or windows command prompt.
 
 ### Lab prerequisites
 
-Azure CLI or Cloud Shell Bash can be used to deploy this solution.
+Deploy this solution by using **Azure CLI** or **Cloud Shell Bash**.
 
 ```Bash
 az login
@@ -132,7 +135,7 @@ az account set --subscription <Add your Subscription Name or ID>  # Change as ne
 
 ### Consumer
 
-Define variables based on your requirements
+Define variables based on your requirements.
 
 ```bash
 consumer_rg=glb-lab
@@ -209,7 +212,7 @@ az network bastion create --name consumer-bastion --sku basic  --public-ip-addre
 
 ### Provider
 
-You can provision both Consumer and Provider in the same Subscription. In case you want to do it separated Subscription change your active subscription as shown:
+You can provision both Consumer and Provider in the same Azure subscription. In case you want to do both environments separated, your can set separated subscriptions as shown below:
 
 ```bash
 az login
@@ -233,7 +236,7 @@ nva=provider-nva
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
 ```
 
-Run Steps 1 and 2. Step 3 deploys Bastion and it is optional:
+Run Steps 1 and 2. Step 3 deploys Bastion, and it is optional:
 
 ```bash
 # 1) Create provider VNET and Internal/External 
@@ -253,7 +256,7 @@ az network public-ip create --resource-group $provider_rg --name provider-bastio
 az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
 ```
 
-#### Considerations after provisioning provider NVAs:
+#### Considerations after provisioning provider NVAs
 
 1. Password specified above is only used during deployment.
 2. After the deployment completes, you can access OPNsense by using provider-nva-elb Public IP on port 50443 (first instance), 50444 (secondary instance). Although is recommended to manage primary instance and sync configuration with the secondary NVA (see item 4)
@@ -270,9 +273,9 @@ az network bastion create --name provider-bastion --sku basic  --public-ip-addre
 
 #### Test connectivity to consumer-vm via its ELB
 
-After deployment is ready you dont have the traffic going to the provider yet. You need to chain the consumer-elb to the provider-nva-glb (instruction included on the next section).
+After deployment is ready, you don't have the traffic going to the provider yet. You have to build the chain between the consumer-elb to the provider-nva-glb. See next [section](#build-a-chain-between-consumer-elb-and-provider-nva-glb) for more details.
 
-To make sure everything is fine you can run the following commands to test the connectivity. You can use the following tools:
+To ensure everything is fine, you can run the following commands to test the connectivity. You can use the following tools:
 
 ```bash
 # Subscription where Consumer is (required only if consumer is on different subscription)
@@ -299,12 +302,11 @@ curl $consumerelbpip
 
 #### Build a chain between consumer-elb and provider-nva-glb
 
-It is recommended to leave one of the connectivity tests above while chaining the consumer-elb to the provider-nva-glb.
-
-Commands below work for consumer and provider in same or different subscriptions (Portal only works for the same subscription):
+Leave one of the connectivity tests running above while chaining the consumer-elb to the provider-nva-glb.
+The commands below work for consumer and provider in the same or different subscriptions (Azure Portal only works for the same subscription):
 
 ```bash
-# Check current sub
+# Check what is the current active subscription
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
 # Subscription where Provider (required only if provider is on different subscription)
 az account set --subscription <provider subscription>  # Change to your subscription name
@@ -328,29 +330,105 @@ az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name co
 
 On the process above by adding the chain between consumer-elb and provider-nva-glb your running connectivity test should stop because there's no Firewall rule to allow traffic on the NVA. You should see a transition to disconnection as shown:
 
-![transition](./media/transition.png)
+```bash
+#PSping to consumer-elb public IP using port 80.
+psping -t 40.113.192.215:80 
+
+#output
+Connecting to 40.113.192.215:80: from 192.168.68.93:50642: 23.20ms
+Connecting to 40.113.192.215:80: from 192.168.68.93:50644: 22.97ms
+Connecting to 40.113.192.215:80: from 192.168.68.93:50646: 24.06ms
+Connecting to 40.113.192.215:80: from 192.168.68.93:50647: 23.41ms
+Connecting to 40.113.192.215:80: from 0.0.0.0:50648:
+This operation returned because the timeout period expired.
+Connecting to 40.113.192.215:80: from 0.0.0.0:50650:
+This operation returned because the timeout period expired.
+Connecting to 40.113.192.215:80: from 0.0.0.0:50652:
+This operation returned because the timeout period expired.
+Connecting to 40.113.192.215:80: from 0.0.0.0:50653:
+This operation returned because the timeout period expired.
+```
 
 ## Traffic inspection
 
+In this section, we will explore some firewall features for traffic inspection using OPNSense Firewall over different scenarios. Let's start with simple firewall rules to allow traffic and move over other firewall capabilities such as IPDS, Proxy, DDoS protection.
+
 ### Layer 4 (Firewall)
+
+To begin, a simple firewall rule we will cover two traffic flows. The first one is for inbound traffic, which will simulate an internet client sending an HTTP request or probe to TCP 80, by reaching the website hosted in the consumer-vm behind the ELB which is chained to the GLB, and get the traffic inspected by the OPNsense NVAs.
+
+The second scenario is for the customer-vm initiating an outbound call to get the reverse-path inspected.
 
 #### Inbound Traffic
 
-1. Create a Firewall Rule to allow traffic traffic to the port 80. You can enable logging to also see that traffic over Firewall - Log Files - Live View.
+1. Create a Firewall Rule under glbext (external vxlan0 interface) to allow traffic to port 80. By enabling logging on the same rule, you can see the traffic over Firewall - Log Files - Live View.
 ![firewall-rules-glbext](./media/opn-firewall-rules-glbext-http.png)
-2. Make sure to apply changes and synchorize with settings with provider-nva-secondary by clicking on System: High Availability: Status and click in sync. (Note: you can also shutdown one of the NVAs if you want to avoid sync every time when you make a change. You can resync later as well to commit the changes to the secondary).
+2. Make sure to apply changes and synchronize with settings with provider-nva-secondary by clicking on System: High Availability: Status and clicking in sync. (Note: you can also shut down one of the NVAs if you want to avoid sync whenever you make a change. You can resync later to commit the changes to the secondary).
 ![firewall-rules-sync](./media/opn-firewall-rules-glbext-hasync.png)
-3. Check the psping/nping/hping connectivity check against port 80. If you have a check for port 50000 it should still see failure.
-4. Play with the firewall rules and check the logs.
+3. Issue a psping/nping/hping or even curl against the Public IP of the consumer-ELB to validate the connectivity. If you have a check for port 50000, it should still see failure because the rule above has been open only for TCP 80 (HTTP).
+	```bash
+    # Get consumer-elb public ip as variable.
+    consumerelbpip=$(az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv)
+    echo $consumerelbpip
+    # Use the output below to run your connectivity tests. 
+    #Tests on Windows 
+    echo psping -t $consumerelbpip:80 
+    echo psping -t $consumerelbpip:50000
+    # Run output on windows command line.
+
+    # Use Linux (it requires nmap and hping3 packages)
+    sudo hping3 $consumerelbpip -S -p 50000
+    sudo nping --tcp $consumerelbpip -p 80 -c 50000
+    nc -v -z $consumerelbpip 80
+    # output: Connection to 40.113.192.215 80 port [tcp/http] succeeded!
+    curl $consumerelbpip
+    # output: Test Website on consumer-vm
+    ```
+4. Play with the firewall rules as you whish by restricting to source and destination. Also check the logs.
 
 #### Outbound Traffic
 
-(coming soon)
+1. Access the consumer-vm via Bastion and try to make an outbound call to the Internet, such as: __curl ifconfig.io__ or __nc -v -z 8.8.8.8 53__. The expectation is the connectivity should fail.
+    ```bash
+    consumer-vm:~$ curl ifconfig.io
+    curl: (7) Failed to connect to ifconfig.io port 80: Connection timed out
+    
+    consumer-vm:~$ nc -v -z 8.8.8.8 53
+    nc: connect to 8.8.8.8 port 53 (tcp) failed: Connection timed out
+    ```
+2. Create a Firewall rule under glbint (internal vxlan1 interface) to allow outbound traffic as shown:
+![firewall-rules-glbint](./media/opn-firewall-rules-glbint-all.png)
+3. Re-run the same commands __curl ifconfig.io__ or __nc -v -z 8.8.8.8 53__ and check now if you have connectivity.
+
+    ```bash
+    consumer-vm:~$ curl ifconfig.io
+    40.113.192.215
+    
+    consumer-vm:~$ nc -v -z 8.8.8.8 53
+    Connection to 8.8.8.8 53 port [tcp/domain] succeeded!
+    ```
+4. Play with the firewall rules as you whish by restricting to source and destination. Also check the logs, for example by hitting inspect over the rule and you should get all the traffic going over the rule created.
+![firewall-rules-glbint](./media/opn-firewall-rules-glbint-inspect.png)
+![firewall-rules-glbint](./media/opn-firewall-rules-glbint-inspect-click.png)
+![firewall-rules-glbint](./media/opn-firewall-rules-glbint-inspect-states.png)
+
+    **Bonus**: nslookup ifconfig.io confirms the target IPs used by curl and showed obove in the inspection:
+    ```bash
+    consumer-vm:~$ nslookup ifconfig.io
+    Server:127.0.0.53
+    Address:127.0.0.53#53
+
+    Non-authoritative answer:
+    Name:ifconfig.io
+    Address: 172.67.189.102
+    Name:ifconfig.io
+    Address: 104.21.65.79
+    ```
 
 ### Intrusion detection (IDS)
 
 (coming soon)
 
-### Layer 7 (Inspection)
+### Layer 7 inspection
 
 (coming soon)
