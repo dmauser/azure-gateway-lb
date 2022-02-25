@@ -8,7 +8,7 @@
     - [Considerations](#considerations)
 - [ARM Template](#arm-template)
 - [Deploy this solution](#deploy-this-solution)
-    - [Prerequisites](#prerequisites)
+    - [Prerequisites](#lab-prerequisites)
     - [Consumer](#consumer)
     - [Provider](#provider)
 - [Traffic inspection](#traffic-inspection)
