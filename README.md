@@ -256,7 +256,11 @@ az network bastion create --name provider-bastion --sku basic  --public-ip-addre
 #### Considerations after provisioning provider NVAs:
 
 1. Password specified above is only used during deployment.
-2. After the deployment completes, you can access OPNsense by using provider-elb Public IP on port 50443 (first instance), 50444 (secondary instance).
+2. After the deployment completes, you can access OPNsense by using provider-nva-elb Public IP on port 50443 (first instance), 50444 (secondary instance). Although is recommended to manage primary instance and sync configuration with the secondary NVA (see item 4)
+    ```bash
+    # Get provider-nva-elb Public IP to manage both instances
+    az network public-ip show -g $provider_rg --name provider-nva-elb-pip --query ipAddress -o tsv
+    ```
 3. It is recommended you manage only primary and synchronize configuration with secondary.
 4. Default username is: **root** and default password is: **opnsense** (**Please change the password**).
     - Because the deployment is made in HA (primary and secondary) NVAs, make sure to change the HA Configuration Synchronization Settings password too.
