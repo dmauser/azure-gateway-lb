@@ -6,6 +6,7 @@
 - [Network diagram](#network-diagram)
     - [Components and traffic flow](#components-and-traffic-flow)
     - [Considerations](#considerations)
+- [ARM Template](#arm-template)
 - [Deploy this solution](#deploy-this-solution)
     - [Prerequisites](#prerequisites)
     - [Consumer](#consumer)
@@ -99,7 +100,6 @@ Here are some details how that VXLAN overlay is built for internal and external 
 - Consumer and Provider can be in different Azure Subscriptions or tenants.
 - At this time only External (Public) LB is supported to chain to the Gateway LB. Therefore, only North-South/South-North traffic patterns are supported.
 
-
 ## ARM Template
 
 Before going over all the lab steps, it is important to share that you can deploy this solution in your environment by using an ARM Template available. This ARM Template assumes you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External), and Trusted (or Internal).  However, it is recommended you go over the lab to understand better all the component involved and it will help you to succeed on the provisioning process.
@@ -111,7 +111,7 @@ Also review the [Considerations after provisioning provider NVAs:](#consideratio
 
 ## Deploy this solution
 
-On this lab you are going to deploy to deploy Consumer and Provider in totally different networks. In this demonstration both networks use the same address range (10.0.0.0/24) to proof that on GLB model provider side, where the inspection is done, is totally separated from the consumer side from networking perspective (no peerings between them). You can also provision both Consumer and Provider in the same Subscription or separated Subscription/Tenants.
+On this lab you are going to deploy to deploy Consumer and Provider in totally different networks. In this demonstration both networks use the same address range (10.0.0.0/24) to proof that on GLB model provider side, where the inspection is done, is totally separated from the consumer side from networking perspective (no VNET peerings between them). You can also provision both Consumer and Provider in the same Subscription or separated Subscription/Tenants.
 
 :point_right: **Note:** the commands below use bash variables format. Therefore, run them either over Linux with Azure CLI or Azure Cloud Shell Bash. Variables will fail over AZ CLI in PowerShell or windows command prompt.
 
