@@ -19,7 +19,7 @@
     "virtualMachineName": {
       "type": "string",
       "metadata": {
-        "description": "OPN NVA Manchine Name"
+        "description": "OPN NVA Machine Name"
       }
     },
     "TempUsername": {
