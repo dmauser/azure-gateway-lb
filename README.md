@@ -26,7 +26,7 @@ GLB will be using a pair of open-source OPNsense NVAs as its backend, and we wil
 
 **Note:** for more information on OPNsense provisioning in Azure, check a dedicated repo with some other deployments: [OPNSense in Azure using bootstrap](https://github.com/dmauser/opnazure)
 
-We assume you some a basic knowledge of what GLB is, if below some references to bring you up to the speed on GLB:
+We assume you have some basic knowledge of what GLB is. If not, below are some references to bring you up to the speed on GLB:
 
 - **Microsoft Docs:** [Gateway Load Balancer](https://docs.microsoft.com/en-us/azure/load-balancer/gateway-overview)
 - **Azure Blog:** [Enhance third-party NVA availability with Azure Gateway Load Balancer—now in preview](https://azure.microsoft.com/en-us/blog/enhance-thirdparty-nva-availability-with-azure-gateway-load-balancer-now-in-preview/) - This article also goes over vendor-specific supportability for GLB
@@ -105,7 +105,8 @@ Here are some details how that VXLAN overlay is built for internal and external 
 
 ## ARM Template
 
-Before going over all the lab steps, you can deploy this solution in your environment using an ARM template. The available template below assumes that you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External) and Trusted (or Internal).  
+Before going over all the lab steps, you can deploy the provider side of this solution in your environment using an ARM template and the "Deploy to Azure" button. The available template below assumes that you have an existing Virtual Network (VNET) and at least two subnets: Untrusted (or External) and Trusted (or Internal).
+If you deploy the provider side using that template, you will not need to go through steps of the provider unless you want to deploy Azure Bastion.
 
 [![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
 [![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fdmauser%2Fazure-gateway-lb%2Fmain%2FARM%2Fglb-active-active.json)
@@ -155,7 +156,7 @@ Run Steps below from 1 to 6 or 7 (Bastion is optional):
 az group create --name $consumer_rg --location $consumer_location --output none
 az network vnet create --resource-group $consumer_rg --name consumer-vnet --location $consumer_location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
 
-# 2) UDR to restrict SSH access to Azure VMs from your Public IP only:
+# 2) NSG to restrict SSH access to Azure VMs from your Public IP only:
 az network nsg create --resource-group $consumer_rg --name consumer-nsg --location $consumer_location
 az network nsg rule create \
     --resource-group $consumer_rg \
@@ -193,7 +194,7 @@ az network lb probe create -g $consumer_rg --lb-name consumer-elb --name httppro
 az network lb rule create -g $consumer_rg --lb-name consumer-elb --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
 az network lb inbound-nat-rule create -g $consumer_rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22
 
-# 4) Deploy Azure VM with NGX using a simple test Website
+# 4) Deploy Azure VM with NGINX using a simple test Website
 az network nic create --resource-group $consumer_rg -n consumer-vm-nic --location $consumer_location --subnet vmsubnet --vnet-name consumer-vnet --output none
 az vm create -n consumer-vm -g $consumer_rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $consumer_location --output none
 
@@ -286,10 +287,11 @@ consumerelbpip=$(az network public-ip show -g $consumer_rg --name PublicIPconsum
 echo $consumerelbpip
 
 # Use the output below to run your connectivity tests. 
-#Tests on Windows 
+# It requires psping.exe from PSTools SysInternal
+# Tests on Windows 
 echo psping -t $consumerelbpip:80 
 echo psping -t $consumerelbpip:50000
-# Run output on windows command line.
+# Run output on windows command line.psp
 
 # Use Linux (it requires nmap and hping3 packages)
 sudo hping3 $consumerelbpip -S -p 50000
