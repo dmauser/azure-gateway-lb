@@ -194,12 +194,12 @@ tcpdump -n -i vxlan1 host 8.8.8.8
 
 # Recommended for savings
 # Set variables (Replace the variables when needed)
-$consumer_rg=glb-lab
-$consumer_location=glb-lab
-$provider_rg=-glb-lab
-$provider_location=glb-lab
+consumer_rg=glb-lab
+consumer_location=glb-lab
+provider_rg=glb-lab
+provider_location=glb-lab
 # 1) Delete Bastion (later move this process to Bicep)
-az network bastion delete --resource-group $consumer_rg --name consumer-bastion
+az network bastion delete --resource-group $consumer_rg --name consumer-bastion 
 az network bastion delete --resource-group $provider_rg --name provider-bastion 
 # 2) Add Bastion
 az network bastion create --name provider-bastion --sku basic --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --no-wait
