@@ -196,7 +196,7 @@ az network lb inbound-nat-rule create -g $consumer_rg --lb-name consumer-elb -n 
 
 # 4) Deploy Azure VM with NGINX using a simple test Website
 az network nic create --resource-group $consumer_rg -n consumer-vm-nic --location $consumer_location --subnet vmsubnet --vnet-name consumer-vnet --output none
-az vm create -n consumer-vm -g $consumer_rg --image UbuntuLTS --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $consumer_location --output none
+az vm create -n consumer-vm -g $consumer_rg --image Ubuntu2204 --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $consumer_location --output none
 
 # ) Attach VM to LB Rule and NAT Rule
 az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
