@@ -63,7 +63,7 @@ sed -i "" 's/#PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
 # This resplace of set -e which force the script to finish in case of non status code 0 has to be inplace
 sed -i "" "s/set -e/#set -e/g" opnsense-bootstrap.sh.in
 sed -i "" "s/reboot/shutdown -r +1/g" opnsense-bootstrap.sh.in
-sh ./opnsense-bootstrap.sh.in -y -r "25.1"
+sh ./opnsense-bootstrap.sh.in -y -r 25.1
 
 # Add Azure waagent
 fetch https://github.com/Azure/WALinuxAgent/archive/refs/tags/v2.12.0.4.tar.gz
