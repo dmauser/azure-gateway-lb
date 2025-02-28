@@ -1391,13 +1391,13 @@
           "resources": [
             {
               "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2015-06-15",
+              "apiVersion": "2023-07-01",       
               "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
               "location": "[resourceGroup().location]",
               "properties": {
                 "publisher": "Microsoft.OSTCExtensions",
                 "type": "CustomScriptForLinux",
-                "typeHandlerVersion": "1.4",
+                "typeHandlerVersion": "1.5",
                 "autoUpgradeMinorVersion": false,
                 "settings": {
                   "fileUris": [
@@ -1467,13 +1467,13 @@
           "resources": [
             {
               "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2015-06-15",
+              "apiVersion": "2023-07-01",       
               "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
               "location": "[resourceGroup().location]",
               "properties": {
                 "publisher": "Microsoft.OSTCExtensions",
                 "type": "CustomScriptForLinux",
-                "typeHandlerVersion": "1.4",
+                "typeHandlerVersion": "1.5",
                 "autoUpgradeMinorVersion": false,
                 "settings": {
                   "fileUris": [
