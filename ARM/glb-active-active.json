@@ -19,7 +19,7 @@
     "virtualMachineName": {
       "type": "string",
       "metadata": {
-        "description": "OPN NVA Machine Name"
+        "description": "OPN NVA Manchine Name"
       }
     },
     "TempUsername": {
@@ -712,9 +712,9 @@
                     "createOption": "FromImage"
                   },
                   "imageReference": {
-                    "publisher": "MicrosoftOSTC",
-                    "offer": "FreeBSD",
-                    "sku": "12.0",
+                    "publisher": "thefreebsdfoundation",
+                    "offer": "freebsd-14_1",
+                    "sku": "14_1-release-amd64-gen2-zfs",
                     "version": "latest"
                   }
                 },
@@ -734,6 +734,11 @@
                     }
                   ]
                 }
+              },
+              "plan": {
+                "name": "14_1-release-amd64-gen2-zfs",
+                "publisher": "thefreebsdfoundation",
+                "product": "freebsd-14_1"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', variables('trustedNicName'))]",
@@ -1080,9 +1085,9 @@
                     "createOption": "FromImage"
                   },
                   "imageReference": {
-                    "publisher": "MicrosoftOSTC",
-                    "offer": "FreeBSD",
-                    "sku": "12.0",
+                    "publisher": "thefreebsdfoundation",
+                    "offer": "freebsd-14_1",
+                    "sku": "14_1-release-amd64-gen2-zfs",
                     "version": "latest"
                   }
                 },
@@ -1102,6 +1107,11 @@
                     }
                   ]
                 }
+              },
+              "plan": {
+                "name": "14_1-release-amd64-gen2-zfs",
+                "publisher": "thefreebsdfoundation",
+                "product": "freebsd-14_1"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', variables('trustedNicName'))]",
@@ -1391,7 +1401,7 @@
           "resources": [
             {
               "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2023-07-01",       
+              "apiVersion": "2023-07-01",
               "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
               "location": "[resourceGroup().location]",
               "properties": {
@@ -1467,7 +1477,7 @@
           "resources": [
             {
               "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2023-07-01",       
+              "apiVersion": "2015-06-15",
               "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
               "location": "[resourceGroup().location]",
               "properties": {
