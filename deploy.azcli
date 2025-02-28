@@ -18,8 +18,17 @@ consumervnetcidr="10.0.0.0/24"
 consumersubnet="10.0.0.0/27"
 consumerbastionsubnet="10.0.0.32/27"
 mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
-echo "Type username and password"
-read -p 'Username: ' username && read -sp 'Password: ' password 
+# Prompt for username and password 
+read -p "Enter your username (hit enter for default: azureuser): " username
+username=${username:-azureuser} # Prompt for username, default to azureuser if not provided
+while true; do
+  read -s -p "Enter your password: " password
+  echo
+  read -s -p "Confirm your password: " password_confirm
+  echo
+  [ "$password" = "$password_confirm" ] && break
+  echo "Passwords do not match. Please try again."
+done
 
 # 1) Create Consumer VNET and subnet
 az group create --name $consumer_rg --location $consumer_location --output none
@@ -76,8 +85,8 @@ az vm extension set --resource-group $consumer_rg --vm-name consumer-vm --name C
 
 # 7) Deploy Bastion (Optional)
 az network vnet subnet create --resource-group $consumer_rg --name AzureBastionSubnet --vnet-name consumer-vnet --address-prefixes $consumerbastionsubnet --output none
-az network public-ip create --resource-group $consumer_rg --name consumer-bastion-pip --sku Standard --location $consumer_location
-az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location
+az network public-ip create --resource-group $consumer_rg --name consumer-bastion-pip --sku Standard --location $consumer_location --output none
+az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location --output none
 
 ### Provider ###
 
@@ -125,7 +134,7 @@ az network public-ip show -g $provider_rg --name provider-nva-elb-pip --query ip
 # 3) Deploy Bastion (Optional) - You can access OPNSense by SSH via Bastion to perform troubleshooting.
 az network vnet subnet create --resource-group $provider_rg --name AzureBastionSubnet --vnet-name provider-vnet --address-prefixes $providerbastionsubnet --output none
 az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
-az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location
+az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --output none
 
 
 #### Build a chain between consumer-elb and provider-nva-glb
