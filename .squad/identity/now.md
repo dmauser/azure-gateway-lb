@@ -1,9 +1,12 @@
 # Now
 
-**Last focused:** Phase 1 complete (Quorra approved). Phase 2 + Phase 3 pending.
+**Last focused:** Phase 2 complete (Clu+Ram). Phase 3 docs complete (Flynn). Trusted Launch + cloud-init queued for Clu when Daniel approves.
 
-**Paused:** 2026-05-09 by Daniel (resuming tomorrow).
+**Current status:** Awaiting Daniel approval for:
+1. Clu's Trusted Launch implementation (Bicep changes to VM modules)
+2. Clu's cloud-init migration (Consumer VM CSE → cloud-init)
+3. Flynn's CI workflow enablement (.github/workflows/ci.yml)
 
-**Next session entry point:** Say "Resume Phase 2" — coordinator should query SQL todos, dispatch Clu + Ram in parallel for Phase 2 modernization, plus Flynn for the rest of Phase 3 docs.
+**Next session entry point:** Daniel decision on Phase 3 Bicep tasks (Trusted Launch + cloud-init). Once approved, dispatch Clu for parallel implementation. Flynn stands by to remove CSE from deploy.azcli post-merge.
 
-See `.squad/decisions.md` for context, `plan.md` in session folder for full state.
+See `.squad/decisions.md` for full Phase 2+3 decision records, `.squad/orchestration-log/` for agent logs.

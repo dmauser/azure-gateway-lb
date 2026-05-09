@@ -143,3 +143,58 @@ az network lb frontend-ip update \
 
 **Status:** Phase 3 complete. All three phases (1=unblock, 2=modernize, 3=polish) now concluded. Repository operationally ready for production use by team.
 
+---
+
+### 2026-05-09: Phase 3 — Polish Work Complete (p3 tracks)
+
+**Session:** Phase 3 polish (four tracks) on request from Daniel Mauser
+
+#### Deliverables shipped:
+
+1. **`docs/troubleshooting.md`** — Full troubleshooting guide covering:
+   - deploy.azcli failure modes (SSH_PUBLIC_KEY, subscription, pre-existing RG, GLB race)
+   - VXLAN tunnel debugging (ports 10800/10801, Azure VIP MAC `12:34:56:78:9a:bc`, tcpdump on OPNsense)
+   - Standard LB inbound NAT rule `--frontend-ip-name` pitfall
+   - Cross-subscription chaining (`$glbfeid` capture order)
+   - OPNsense default creds, web UI NAT ports, SSH via Bastion
+   - GLB chain verification and removal commands
+
+2. **`docs/architecture/trusted-launch.md`** — ADR-style proposal for Trusted Launch:
+   - Key finding: OPNsense (FreeBSD) does NOT have a Microsoft-signed Secure Boot shim. Safe approach: `vTpmEnabled: true`, `secureBootEnabled: false` for NVAs.
+   - Ubuntu consumer-vm: full TL (both Secure Boot + vTPM)
+   - Bicep parameter contract for Clu documented
+   - Queued for Clu to implement
+
+3. **`docs/architecture/cloud-init-migration.md`** — Cloud-init migration proposal:
+   - cloud-init YAML equivalent of CSE command documented
+   - Bicep `customData: base64(cloudInitScript)` pattern documented
+   - OPNsense (FreeBSD): no change — custom bootstrap via CSE remains (Ram's domain)
+   - Queued for Clu to implement; Flynn to remove CSE step from deploy.azcli post-merge
+
+4. **`.github/workflows/ci.yml`** — Three-job CI workflow:
+   - `bicep-build`: compile all top-level Bicep files
+   - `bicep-lint`: lint all top-level Bicep files
+   - `shellcheck`: static analysis on `scripts/*.sh` and `deploy.azcli`
+   - YAML syntax validated with Python `yaml.safe_load`
+   - Left for user to enable (not pushed directly to main)
+
+5. **README TOC** — Added entries for troubleshooting guide and architecture docs
+
+#### Learnings:
+
+- **FreeBSD Secure Boot gap:** No Microsoft-signed shim exists for FreeBSD/OPNsense on Azure as of 2026-05-09. Enabling `secureBootEnabled: true` on OPNsense VMs causes boot failure. Pattern: enable vTPM only for NVAs.
+- **Cloud-init timing advantage:** Cloud-init blocks VM readiness reporting until complete, meaning the LB health probe fires after nginx is installed — eliminating the CSE `--no-wait` race condition that currently exists.
+- **`az bicep lint` vs `az bicep build`:** Both commands emit warnings; `lint` is the semantic linter (checks coding best practices), `build` validates compilation. Running both in separate CI jobs catches different issue classes.
+- **`find bicep -maxdepth 1`** pattern excludes module subdirectories from the CI build/lint loop, keeping the build scope tight to entrypoint templates.
+- **ShellCheck on `.azcli` files:** ShellCheck doesn't recognize `.azcli` by extension — must pass `--shell=bash` explicitly. Severity `warning` excludes `info`-level style notices that would be too noisy for a CI gate.
+
+---
+
+### Cross-Agent Context (2026-05-09 Session Resume)
+
+**From Clu:** Phase 2 Bicep modernization complete (7 warnings → 0, FreeBSD 14.4 migration, SSH key parameters). Awaiting your implementation: Trusted Launch + cloud-init ADRs (`docs/architecture/*`). Changes target `opnsense-vm-active-active.bicep` and consumer VM module.
+
+**From Ram:** Phase 2 scripts complete and committed. Versions at 25.1/v2.12.0.4/python3.11 to support Clu's FreeBSD 14.4 migration. VXLAN port persistence in XML guaranteed across reloads.
+
+**Next:** Clu implements Trusted Launch + cloud-init Bicep changes (parallel). Once merged, Flynn removes CSE step from deploy.azcli. CI workflow `.github/workflows/ci.yml` left for user enablement.
+

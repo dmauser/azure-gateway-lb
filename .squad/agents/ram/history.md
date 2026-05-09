@@ -130,3 +130,11 @@ shellcheck                             # not on PATH in Windows env; flagged in 
 - `python3.11` symlink assumes OPNsense 25.1 ships with Python 3.11 (consistent with FreeBSD ports tree at that release epoch); if image ships Python 3.12+, symlink will fail — tracked as follow-up.
 - `#!/bin/sh` + `pipefail` is harmless on Linux/bash but a no-op on FreeBSD `ash`; keeping as-is per Phase 1 precedent. Upgrade to `#!/usr/bin/env bash` post-bootstrap is the long-term fix.
 
+---
+
+### Cross-Agent Context (2026-05-09 Session Resume)
+
+**From Clu:** Phase 2 Bicep modernization complete. All OPNsense VM modules migrated to FreeBSD 14.4. Your script versions (25.1, v2.12.0.4, python3.11) are now compatible with the new image. Recommended: live image testing once Daniel approves.
+
+**To Clu:** Your confirmation of FreeBSD 14.4 + OPNsense compatibility will unblock ram's live deployment tests (currently blocked on Clu).
+

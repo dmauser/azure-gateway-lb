@@ -184,3 +184,14 @@
 - Change sku: `12.0` → `14_4-release-amd64-gen2-ufs`
 - Regenerate glb-active-active.json after changes
 - Test deployment in dev environment before promotion to main
+
+---
+
+### Cross-Agent Context (2026-05-09 Session Resume)
+
+**From Flynn:** Trusted Launch + cloud-init migration ADRs proposed and queued for your implementation:
+- `docs/architecture/trusted-launch.md` — OPNsense VMs: `secureBootEnabled: false` + `vTpmEnabled: true` (no FreeBSD signed shim). Consumer VM: full Trusted Launch.
+- `docs/architecture/cloud-init-migration.md` — Consumer VM nginx via cloud-init (CSE → `osProfile.customData`). Bicep parameter contract documented. OPNsense unchanged.
+- Handoff: Implement both in parallel; Flynn will remove CSE from `deploy.azcli` after merge.
+
+**From Ram:** Phase 2 scripts complete; awaiting your FreeBSD 14.4 Bicep confirmation to proceed with live image testing. Script versions now at 25.1/v2.12.0.4/python3.11.
