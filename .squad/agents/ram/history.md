@@ -138,3 +138,38 @@ shellcheck                             # not on PATH in Windows env; flagged in 
 
 **To Clu:** Your confirmation of FreeBSD 14.4 + OPNsense compatibility will unblock ram's live deployment tests (currently blocked on Clu).
 
+---
+
+### 2026-05-09: Path D-proper — OPNsense Bootstrap via customData/cloud-init
+
+**Context:** All three Azure remote-exec mechanisms (CSE, RunCommandLinux, run-command-invoke) are BROKEN on FreeBSD 14.4. `RunCommandLinux` v1.0.9 installs a Linux ELF binary that cannot execute on FreeBSD. Quorra confirmed this in Round 3 as a BLOCKER.
+
+**Deliverable shipped:** `bicep/cloud-init/opnsense-bootstrap.yaml`
+
+**FreeBSD cloud-init facts learned:**
+- `thefreebsdfoundation/freebsd-14_4` images ship with cloud-init pre-installed and enabled (confirmed by publisher's Azure-friendly contract)
+- `runcmd:` executes each item via `/bin/sh -c` as root — no special privilege escalation needed
+- Use `/usr/bin/fetch` (FreeBSD base) NOT `curl`/`wget` for HTTP fetches in cloud-config; `fetch` handles HTTPS fine in base system
+- `/usr/bin/tee` is available in FreeBSD base — safe to use in runcmd pipelines
+- `cloud-init status --wait` is available on FreeBSD (cloud-init ships as a Python port)
+- `hostname:` module fires before `runcmd`; a `hostname <cmd>` in runcmd can override cleanly
+- Do NOT use `apt:`, `package_update:`, `packages:` — Linux-only directives; omit entirely or use `pkg` calls inside `runcmd` if package installs are needed
+- YAML `[` `]` chars in plain block scalars are fine; wrapping runcmd items in double quotes is safer for complex expressions with `$()` and `tr '[:upper:]' '[:lower:]'`
+
+**Placeholder contract (Clu mechanical string replace):**
+| Placeholder | Value |
+|-------------|-------|
+| `__URI__` | Base URL with trailing slash |
+| `__ROLE__` | `Primary` or `Secondary` |
+| `__LOCAL_CIDR__` | Local IP with CIDR, e.g. `10.0.1.4/24` |
+| `__PEER_IP__` | Peer IP no mask, e.g. `10.0.1.5` |
+
+**Sentinel pattern:** Last runcmd writes `bootstrap-ok-<ISO8601>` to `/var/run/opnsense-bootstrap-done`. Quorra's smoke tests poll this file over SSH to confirm cloud-init success without needing Azure API extension status.
+
+**Validation run:**
+```
+python -c "import yaml; yaml.safe_load(open('bicep/cloud-init/opnsense-bootstrap.yaml'))"
+# → YAML parse: OK; keys: hostname, runcmd; runcmd count: 5
+```
+All 4 placeholders verified present with exact spelling.
+
