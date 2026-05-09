@@ -7,6 +7,55 @@
 
 ## Learnings
 
+### Session 4: Trusted Launch + Cloud-Init (2026-05-09)
+
+#### securityProfile object shapes applied
+
+**OPNsense NVA VMs** (`opnsense-vm-active-active.bicep`, `opnsense-vm.bicep`, `opnsense-vm-sing-nic.bicep`):
+```bicep
+securityProfile: {
+  securityType: 'TrustedLaunch'
+  uefiSettings: {
+    secureBootEnabled: false  // FreeBSD: no Microsoft-signed UEFI shim — boot fails with SB on
+    vTpmEnabled: true         // vTPM for attestation only; Gen2 SKU required
+  }
+}
+```
+
+**Consumer VM** (`consumer-vm.bicep` — new module):
+```bicep
+securityProfile: {
+  securityType: 'TrustedLaunch'
+  uefiSettings: {
+    secureBootEnabled: true   // Ubuntu 22.04 Gen2 ships shim-signed (Microsoft UEFI CA enrolled)
+    vTpmEnabled: true
+  }
+}
+```
+
+#### Gen2 image verification
+- OPNsense: `thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs` — already Gen2 (Phase 2 pick); confirmed by SKU name substring `gen2`
+- Consumer: switched from `Ubuntu2204` (ambiguous, can be Gen1 or Gen2) to explicit `Canonical/0001-com-ubuntu-server-jammy/22_04-lts-gen2` — guarantees Gen2 for Trusted Launch compatibility
+
+#### Cloud-init file location pattern
+- YAML lives at `bicep/cloud-init/<vm-name>.yaml` (diff-friendly, lints separately)
+- Module loads it at compile time: `var cloudInitData = base64(loadTextContent('../../cloud-init/consumer-vm.yaml'))`
+- Path is relative to the `.bicep` file; `../../cloud-init/` resolves correctly from `bicep/modules/VM/`
+- `loadTextContent` + `base64` is a single expression — no intermediate variable needed if only used once
+
+#### Consumer VM discovery
+- Consumer VM is NOT in any Bicep template; it is currently deployed entirely via `deploy.azcli` imperative CLI calls
+- Created `bicep/modules/VM/consumer-vm.bicep` as a new module (future replacement for imperative consumer VM creation)
+- The CSE nginx install (deploy.azcli step 7: `az vm extension set --name CustomScript ...`) is NOT a Bicep resource — flagged for Flynn to remove after Bicep consumer deployment is adopted
+- No existing CSE resource to remove from Bicep; the "removal" is that the new module simply does not include one
+
+#### Build validation results
+- `az bicep build --file bicep/glb-active-active.bicep` → exit 0, 0 errors, 0 linter warnings (one pre-existing upgrade-available warning from az CLI, not a Bicep error)
+- `az bicep build --file bicep/modules/VM/consumer-vm.bicep` → exit 0, 0 errors (loadTextContent resolves correctly)
+- `bicep/glb-active-active.json` regenerated in same commit
+
+---
+
 ### Session 1: Full IaC Audit (2026-05-08)
 **Scope:** Bicep modules, ARM templates, parameters, API versions, security, idempotency.
 
