@@ -1,21 +1,38 @@
 #!/bin/sh
 
-# Script Params
-# $1 = OPNScriptURI
-# $2 = Primary/Secondary/SingNic/TwoNics
-# $3 = Trusted Nic subnet prefix - used to get the gw
-# $4 = Private IP Secondary Server
+# Configure OPNsense for Azure Gateway Load Balancer (active-active NVA pair).
+#
+# Usage:
+#   configureopnsense.sh <uri_prefix> <role> <local_ip_cidr> <peer_ip>
+#
+# Parameters:
+#   $1  URI prefix   — base URL from which remote config files are fetched
+#                      (e.g. https://raw.githubusercontent.com/org/repo/main/scripts/)
+#   $2  Role         — "Primary" or "Secondary"
+#   $3  Local CIDR   — this NVA's private IP with prefix length (e.g. 10.0.1.5/24)
+#                      used to derive the LAN gateway (via get_nic_gw.py) and
+#                      as the VXLAN local address (IP portion only)
+#   $4  Peer IP      — the other NVA's private IP (no prefix)
+#                      Primary:   also written as the HA-sync target (synchronizetoip)
+#                      Both roles: used as the VXLAN remote address
+#
+# XML placeholder mapping:
+#   yyy.yyy.yyy.yyy  -> LAN gateway (derived from $3)
+#   xxx.xxx.xxx.xxx  -> peer NVA IP / HA-sync target ($4, Primary only)
+#   lll.lll.lll.lll  -> local NVA IP (stripped from $3)
+#   rrr.rrr.rrr.rrr  -> peer NVA IP ($4)
 
-# Check if Primary or Secondary Server to setup Firewal Sync
-# Note: Firewall Sync should only be setup in the Primary Server
+# Derive bare local IP (strip CIDR prefix) for XML and VXLAN substitutions
+localip=$(echo $3 | cut -d'/' -f1)
+
 if [ "$2" = "Primary" ]; then
     fetch $1glb-config-active-active-primary.xml
     fetch $1get_nic_gw.py
     gwip=$(python get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config-active-active-primary.xml
     sed -i "" "s/xxx.xxx.xxx.xxx/$4/" glb-config-active-active-primary.xml
-    sed -i "" "s/lll.lll.lll.lll/$5/" glb-config-active-active-primary.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$6/" glb-config-active-active-primary.xml
+    sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config-active-active-primary.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$4/" glb-config-active-active-primary.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" glb-config-active-active-primary.xml
     cp glb-config-active-active-primary.xml /usr/local/etc/config.xml
 elif [ "$2" = "Secondary" ]; then
@@ -23,21 +40,10 @@ elif [ "$2" = "Secondary" ]; then
     fetch $1get_nic_gw.py
     gwip=$(python get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config.xml
-    sed -i "" "s/lll.lll.lll.lll/$4/" glb-config.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" glb-config.xml
+    sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$4/" glb-config.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" glb-config.xml
     cp glb-config.xml /usr/local/etc/config.xml
-elif [ "$2" = "SingNic" ]; then
-    fetch $1config-snic.xml
-    cp config-snic.xml /usr/local/etc/config.xml
-elif [ "$2" = "TwoNics" ]; then
-    fetch $1config.xml
-    fetch $1get_nic_gw.py
-    gwip=$(python get_nic_gw.py $3)
-    sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" config.xml
-    sed -i "" "s/lll.lll.lll.lll/$4/" config.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" config.xml
-    cp config.xml /usr/local/etc/config.xml
 fi
 
 #OPNSense default configuration template
@@ -91,33 +97,18 @@ route delete 168.63.129.16
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/22-remoteroute
 
-#VXLAN config
-if [ "$2" = "Primary" ]; then
-    echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 vxlanlocal $5 vxlanremote $6 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure 
-elif [ "$2" = "Secondary" ]; then
-    echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 vxlanlocal $4 vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
-    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure 
-    chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
-fi
+#VXLAN config — identical for Primary and Secondary; IPs derived from $3/$4
+echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan0 vxlanlocal $localip vxlanremote $4 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan1 vxlanlocal $localip vxlanremote $4 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
+chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
 
 #Adds support to LB probe from IP 168.63.129.16
 # Add Azure VIP on Arp table
