@@ -63,6 +63,7 @@ RG_CONSUMER="${RG_CONSUMER:-glb-consumer-rg}"
 RG_PROVIDER="${RG_PROVIDER:-glb-provider-rg}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-azureuser}"
 BASTION_DEPLOY="${BASTION_DEPLOY:-false}"
+OPN_BOOTSTRAP_URI="${OPN_BOOTSTRAP_URI:-https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/}"
 
 # Derived variables
 consumer_rg="$RG_CONSUMER"
@@ -300,102 +301,16 @@ az deployment group create \
         existingUntrustedSubnet=external \
         existingTrustedSubnet=internal \
         PublicIPAddressSku=Standard \
+        bootstrapUri="$OPN_BOOTSTRAP_URI" \
     --output none
-# Deployment blocks until complete — NVA IPs and GLB frontend are safe to query immediately after.
-
-# 3) Bootstrap OPNsense NVAs via WAAgent run-command (replaces CustomScriptForLinux extension)
-#
-# Why run-command instead of CSE:
-#   Microsoft.OSTCExtensions/CustomScriptForLinux handler v1.4.x uses Python 2 syntax (octal
-#   literal 0700) which FreeBSD 14.4 (Python 3 only) rejects at parse time. Versions 1.5.x share
-#   the same Python 2 handler. Microsoft.Azure.Extensions/CustomScript v2.x is Go-based but
-#   compiled only for Linux ELF — not runnable on FreeBSD. No Azure VM extension supports FreeBSD.
-#   The WAAgent action run-command (RunShellScript) bypasses the extension framework entirely
-#   and executes scripts via WAAgent's built-in handler — supported on FreeBSD 14.4.
-#
-# Timing: configureopnsense.sh replaces 'reboot' with 'shutdown -r +1' inside opnsense-bootstrap.
-# The script exits cleanly ~60 s before the reboot fires, so run-command returns success first.
-
-opn_script_uri="https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/"
-
-# Read NVA trusted NIC IPs and subnet prefix from Bicep deployment outputs
-primary_trusted_ip=$(az deployment group show \
-    --resource-group "$provider_rg" \
-    --name "${nva}-deploy" \
-    --query "properties.outputs.primaryTrustedIP.value" \
-    -o tsv)
-secondary_trusted_ip=$(az deployment group show \
-    --resource-group "$provider_rg" \
-    --name "${nva}-deploy" \
-    --query "properties.outputs.secondaryTrustedIP.value" \
-    -o tsv)
-trusted_subnet_prefix=$(az deployment group show \
-    --resource-group "$provider_rg" \
-    --name "${nva}-deploy" \
-    --query "properties.outputs.trustedSubnetPrefix.value" \
-    -o tsv)
-
-echo "Primary trusted NIC IP : $primary_trusted_ip"
-echo "Secondary trusted NIC IP: $secondary_trusted_ip"
-echo "Trusted subnet prefix  : $trusted_subnet_prefix"
-
-echo "Launching OPNsense bootstrap on both NVAs in parallel (expect ~10-15 min each)..."
-
-# FreeBSD uses 'fetch' (built-in) to download files.  Both bootstrap runs are parallel;
-# each returns before the scheduled VM reboot (shutdown -r +1 is async).
-az vm run-command invoke \
-    --resource-group "$provider_rg" \
-    --name "${nva}-primary" \
-    --command-id RunShellScript \
-    --scripts \
-        "fetch -o /tmp/configureopnsense.sh ${opn_script_uri}configureopnsense.sh" \
-        "sh /tmp/configureopnsense.sh ${opn_script_uri} Primary ${trusted_subnet_prefix} ${secondary_trusted_ip}" \
-    --output none &
-primary_run_pid=$!
-
-az vm run-command invoke \
-    --resource-group "$provider_rg" \
-    --name "${nva}-secondary" \
-    --command-id RunShellScript \
-    --scripts \
-        "fetch -o /tmp/configureopnsense.sh ${opn_script_uri}configureopnsense.sh" \
-        "sh /tmp/configureopnsense.sh ${opn_script_uri} Secondary ${trusted_subnet_prefix} ${primary_trusted_ip}" \
-    --output none &
-secondary_run_pid=$!
-
-wait $primary_run_pid   || { echo "ERROR: Primary NVA bootstrap run-command failed." >&2; exit 1; }
-wait $secondary_run_pid || { echo "ERROR: Secondary NVA bootstrap run-command failed." >&2; exit 1; }
-echo "Bootstrap scripts completed. VMs will reboot momentarily (OPNsense schedules shutdown -r +1)."
-
-# Poll for both NVAs to return to running after the OPNsense-triggered reboot
-echo "Waiting for NVA VMs to restart after OPNsense bootstrap..."
-sleep 90  # Initial grace period — reboot fires ~60 s after script exit
-
-for vm_name in "${nva}-primary" "${nva}-secondary"; do
-    echo -n "Polling $vm_name ..."
-    restarted=false
-    for i in $(seq 1 20); do
-        state=$(az vm get-instance-view \
-            --resource-group "$provider_rg" \
-            --name "$vm_name" \
-            --query "instanceView.statuses[?starts_with(code, 'PowerState')].displayStatus" \
-            -o tsv 2>/dev/null || echo "")
-        if [[ "$state" == "VM running" ]]; then
-            echo " running"
-            restarted=true
-            break
-        fi
-        echo -n "."
-        sleep 30
-    done
-    [[ "$restarted" == "true" ]] || echo " WARN: $vm_name did not return to running within timeout; continuing anyway." >&2
-done
+# Deployment blocks until complete — OPNsense VMs are up and cloud-init is queued at first boot.
+# bsdcloudinit will execute configureopnsense.sh during first boot; no post-deploy remote-exec needed.
 
 # Get provider-nva-elb Public IP to manage both OPNsense instances
 echo "Provider NVA ELB Public IP (use port 50443 for primary, 50444 for secondary management):"
 az network public-ip show -g "$provider_rg" --name provider-nva-elb-pip --query ipAddress -o tsv
 
-# 4) Deploy Bastion for provider (Optional — set BASTION_DEPLOY=true to enable)
+# 3) Deploy Bastion for provider (Optional — set BASTION_DEPLOY=true to enable)
 # You can access OPNsense by SSH via Bastion to perform troubleshooting.
 if [[ "${BASTION_DEPLOY}" == "true" ]]; then
   az network vnet subnet create \

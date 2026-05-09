@@ -34,6 +34,9 @@ param DeployWindows bool = false
 @sys.description('SSH public key for OPNsense admin user. When provided, key is added to authorized_keys. Leave empty to use password-only authentication.')
 param adminSshKey string = ''
 
+@sys.description('Base URI for OPNsense bootstrap scripts (trailing slash). Injected into cloud-init customData at deploy time.')
+param bootstrapUri string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/'
+
 // Variables
 var VMOPNsensePrimaryName = '${virtualMachineName}-primary'
 var VMOPNsenseSecondaryName = '${virtualMachineName}-secondary'
@@ -116,6 +119,17 @@ resource untrustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' 
 resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   name: '${existingVirtualNetworkName}/${existingTrustedSubnet}'
 }
+
+// Derive VTEP IPs for OPNsense VXLAN tunnel interfaces from the trusted subnet address prefix.
+// Convention: primary VTEP = base+4, secondary VTEP = base+5, both with /24 mask.
+// Example: trusted prefix 10.0.0.32/27 → primary 10.0.0.36/24, secondary 10.0.0.37/24.
+var trustedNetAddr = split(trustedSubnet.properties.addressPrefix, '/')[0]
+var trustedOctets = split(trustedNetAddr, '.')
+var ipBase3 = '${trustedOctets[0]}.${trustedOctets[1]}.${trustedOctets[2]}'
+var primaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}/24'
+var primaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}'
+var secondaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/24'
+var secondaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}'
 
 // External Load Balancer
 module elb 'modules/vnet/lb.bicep' = {
@@ -287,6 +301,10 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
     ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[1].id
+    role: 'Secondary'
+    localIP: secondaryLocalIP
+    peerIP: secondaryPeerIP
+    bootstrapUri: bootstrapUri
   }
 }
 
@@ -304,14 +322,16 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     ExternalLoadBalancerBackendAddressPoolId: elb.outputs.backendAddressPools[0].id
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
     ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[0].id
+    role: 'Primary'
+    localIP: primaryLocalIP
+    peerIP: primaryPeerIP
+    bootstrapUri: bootstrapUri
   }
 }
 
-// OPNsense bootstrap is performed post-deployment via 'az vm run-command invoke' in deploy.azcli.
-// Microsoft.OSTCExtensions/CustomScriptForLinux and Microsoft.Azure.Extensions/CustomScript
-// both require Python 2 / Linux-native extension handlers that are incompatible with FreeBSD 14.4.
-// WAAgent's built-in RunShellScript action (used by az vm run-command invoke) works on FreeBSD
-// without any extension installation and is the supported bootstrap path for this image.
+// OPNsense bootstrap via cloud-init customData (Path D-proper).
+// bsdcloudinit on FreeBSD 14.4 executes runcmd directives at first boot.
+// No extension framework required — no Python 2 / Linux ELF dependency.
 
 // Windows11 Client Resources
 module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {
@@ -387,7 +407,5 @@ module winvm 'modules/VM/windows11-vm.bicep' = if (DeployWindows) {
   ]
 }
 
-// Outputs — consumed by deploy.azcli to pass correct IPs to az vm run-command (OPNsense bootstrap)
-output primaryTrustedIP string = opnSensePrimary.outputs.trustedNicIP
-output secondaryTrustedIP string = opnSenseSecondary.outputs.trustedNicIP
-output trustedSubnetPrefix string = trustedSubnet.properties.addressPrefix
+// Outputs — consumed by deploy.azcli for connectivity checks and GLB chain validation.
+output providerElbPublicIpName string = publicIPAddressName

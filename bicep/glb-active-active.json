@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "298645284857600471"
+      "templateHash": "379013320463252607"
     }
   },
   "parameters": {
@@ -75,6 +75,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "SSH public key for OPNsense admin user. When provided, key is added to authorized_keys. Leave empty to use password-only authentication."
+      }
+    },
+    "bootstrapUri": {
+      "type": "string",
+      "defaultValue": "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/",
+      "metadata": {
+        "description": "Base URI for OPNsense bootstrap scripts (trailing slash). Injected into cloud-init customData at deploy time."
       }
     }
   },
@@ -638,6 +645,18 @@
           },
           "ExternalloadBalancerInboundNatRulesId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('externalLoadBalanceName')), '2025-04-01').outputs.inboundNatRules.value[1].id]"
+          },
+          "role": {
+            "value": "Secondary"
+          },
+          "localIP": {
+            "value": "[format('{0}.{1}/24', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 5)))]"
+          },
+          "peerIP": {
+            "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 4)))]"
+          },
+          "bootstrapUri": {
+            "value": "[parameters('bootstrapUri')]"
           }
         },
         "template": {
@@ -647,7 +666,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "3379964751087089195"
+              "templateHash": "14450300531206765771"
             }
           },
           "parameters": {
@@ -688,9 +707,47 @@
             },
             "ExternalloadBalancerInboundNatRulesId": {
               "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "NVA role passed to cloud-init for OPNsense HA config. \"Primary\" or \"Secondary\"."
+              }
+            },
+            "localIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Local VTEP IP with /24 CIDR mask (e.g. 10.0.0.36/24). Passed to cloud-init."
+              }
+            },
+            "peerIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Peer NVA VTEP IP without CIDR (e.g. 10.0.0.37). Passed to cloud-init."
+              }
+            },
+            "bootstrapUri": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Base URI for OPNsense bootstrap scripts (trailing slash). Passed to cloud-init."
+              }
+            },
+            "customData": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Pre-encoded customData override. When non-empty and bootstrapUri is empty, used directly. Prefer bootstrapUri path."
+              }
             }
           },
           "variables": {
+            "cloudInitTemplate": "#cloud-config\r\n#\r\n# OPNsense Bootstrap — FreeBSD 14.4 (thefreebsdfoundation/freebsd-14_4)\r\n# Generated by Ram (NVA / Scripts Engineer) — 2026-05-09T13:42:28-05:00\r\n#\r\n# Placeholder contract (Clu substitutes these at Bicep deploy time via string replace):\r\n#   __URI__          Base URL for script/XML fetch (trailing slash required)\r\n#                    e.g. https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/\r\n#   __ROLE__         \"Primary\" or \"Secondary\" (literal; case-exact)\r\n#   __LOCAL_CIDR__   Local NVA IP with CIDR notation, e.g. 10.0.1.4/24\r\n#   __PEER_IP__      Peer NVA IP without CIDR, e.g. 10.0.1.5\r\n#\r\n# FreeBSD cloud-init specifics:\r\n#   - runcmd executes each item via /bin/sh -c as root\r\n#   - fetch is in FreeBSD base at /usr/bin/fetch (not curl/wget)\r\n#   - tee is in FreeBSD base at /usr/bin/tee\r\n#   - cloud-init status --wait is available (cloud-init ships as a Python port)\r\n#   - apt:/packages:/users: directives are Linux-only — intentionally omitted\r\n#   - hostname: directive fires before runcmd; runcmd step 0 overrides to lowercase\r\n#\r\n# Post-deploy validation:\r\n#   Quorra smoke test: ssh to NVA and check:\r\n#     cat /var/run/opnsense-bootstrap-done     # sentinel written by last runcmd\r\n#     cat /var/log/opnsense-bootstrap.log      # full script output\r\n#     cloud-init status --wait                 # cloud-init overall status\r\n\r\n# OS-level hostname (Bicep injects Primary-nva or Secondary-nva; runcmd step 0 lowercases it)\r\nhostname: __ROLE__-nva\r\n\r\nruncmd:\r\n  # Step 0: Set hostname lowercase (primary-nva / secondary-nva)\r\n  #         cloud-init hostname: module fires before runcmd — this overrides it cleanly.\r\n  - \"hostname $(echo __ROLE__ | tr '[:upper:]' '[:lower:]')-nva\"\r\n\r\n  # Step 1: Fetch the bootstrap script using FreeBSD base fetch\r\n  - \"/usr/bin/fetch -o /tmp/configureopnsense.sh '__URI__configureopnsense.sh'\"\r\n  - \"chmod +x /tmp/configureopnsense.sh\"\r\n\r\n  # Step 2: Execute bootstrap (canonical 4-arg contract: URI, Role, LocalCIDR, PeerIP)\r\n  #         stdout+stderr are teed to a persistent log for SSH-accessible post-deploy debugging.\r\n  - \"/tmp/configureopnsense.sh '__URI__' '__ROLE__' '__LOCAL_CIDR__' '__PEER_IP__' 2>&1 | /usr/bin/tee /var/log/opnsense-bootstrap.log\"\r\n\r\n  # Step 3: Sentinel — post-deploy validation polls for this file to confirm success\r\n  - \"echo \\\"bootstrap-ok-$(date -u +%Y%m%dT%H%M%SZ)\\\" > /var/run/opnsense-bootstrap-done\"\r\n",
+            "customDataYaml": "[replace(replace(replace(replace(variables('cloudInitTemplate'), '__URI__', parameters('bootstrapUri')), '__ROLE__', parameters('role')), '__LOCAL_CIDR__', parameters('localIP')), '__PEER_IP__', parameters('peerIP'))]",
+            "resolvedCustomData": "[if(empty(parameters('bootstrapUri')), if(empty(parameters('customData')), null(), parameters('customData')), base64(variables('customDataYaml')))]",
             "untrustedNicName": "[format('{0}-untrusted-nic', parameters('virtualMachineName'))]",
             "trustedNicName": "[format('{0}-trusted-nic', parameters('virtualMachineName'))]"
           },
@@ -710,7 +767,8 @@
                   "computerName": "[parameters('virtualMachineName')]",
                   "adminUsername": "[parameters('TempUsername')]",
                   "adminPassword": "[parameters('TempPassword')]",
-                  "linuxConfiguration": "[if(empty(parameters('adminSshKey')), null(), createObject('disablePasswordAuthentication', false(), 'ssh', createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('TempUsername')), 'keyData', parameters('adminSshKey'))))))]"
+                  "linuxConfiguration": "[if(empty(parameters('adminSshKey')), null(), createObject('disablePasswordAuthentication', false(), 'ssh', createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('TempUsername')), 'keyData', parameters('adminSshKey'))))))]",
+                  "customData": "[variables('resolvedCustomData')]"
                 },
                 "hardwareProfile": {
                   "vmSize": "[parameters('virtualMachineSize')]"
@@ -1022,6 +1080,18 @@
           },
           "ExternalloadBalancerInboundNatRulesId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('externalLoadBalanceName')), '2025-04-01').outputs.inboundNatRules.value[0].id]"
+          },
+          "role": {
+            "value": "Primary"
+          },
+          "localIP": {
+            "value": "[format('{0}.{1}/24', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 4)))]"
+          },
+          "peerIP": {
+            "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 5)))]"
+          },
+          "bootstrapUri": {
+            "value": "[parameters('bootstrapUri')]"
           }
         },
         "template": {
@@ -1031,7 +1101,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "3379964751087089195"
+              "templateHash": "14450300531206765771"
             }
           },
           "parameters": {
@@ -1072,9 +1142,47 @@
             },
             "ExternalloadBalancerInboundNatRulesId": {
               "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "NVA role passed to cloud-init for OPNsense HA config. \"Primary\" or \"Secondary\"."
+              }
+            },
+            "localIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Local VTEP IP with /24 CIDR mask (e.g. 10.0.0.36/24). Passed to cloud-init."
+              }
+            },
+            "peerIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Peer NVA VTEP IP without CIDR (e.g. 10.0.0.37). Passed to cloud-init."
+              }
+            },
+            "bootstrapUri": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Base URI for OPNsense bootstrap scripts (trailing slash). Passed to cloud-init."
+              }
+            },
+            "customData": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Pre-encoded customData override. When non-empty and bootstrapUri is empty, used directly. Prefer bootstrapUri path."
+              }
             }
           },
           "variables": {
+            "cloudInitTemplate": "#cloud-config\r\n#\r\n# OPNsense Bootstrap — FreeBSD 14.4 (thefreebsdfoundation/freebsd-14_4)\r\n# Generated by Ram (NVA / Scripts Engineer) — 2026-05-09T13:42:28-05:00\r\n#\r\n# Placeholder contract (Clu substitutes these at Bicep deploy time via string replace):\r\n#   __URI__          Base URL for script/XML fetch (trailing slash required)\r\n#                    e.g. https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/\r\n#   __ROLE__         \"Primary\" or \"Secondary\" (literal; case-exact)\r\n#   __LOCAL_CIDR__   Local NVA IP with CIDR notation, e.g. 10.0.1.4/24\r\n#   __PEER_IP__      Peer NVA IP without CIDR, e.g. 10.0.1.5\r\n#\r\n# FreeBSD cloud-init specifics:\r\n#   - runcmd executes each item via /bin/sh -c as root\r\n#   - fetch is in FreeBSD base at /usr/bin/fetch (not curl/wget)\r\n#   - tee is in FreeBSD base at /usr/bin/tee\r\n#   - cloud-init status --wait is available (cloud-init ships as a Python port)\r\n#   - apt:/packages:/users: directives are Linux-only — intentionally omitted\r\n#   - hostname: directive fires before runcmd; runcmd step 0 overrides to lowercase\r\n#\r\n# Post-deploy validation:\r\n#   Quorra smoke test: ssh to NVA and check:\r\n#     cat /var/run/opnsense-bootstrap-done     # sentinel written by last runcmd\r\n#     cat /var/log/opnsense-bootstrap.log      # full script output\r\n#     cloud-init status --wait                 # cloud-init overall status\r\n\r\n# OS-level hostname (Bicep injects Primary-nva or Secondary-nva; runcmd step 0 lowercases it)\r\nhostname: __ROLE__-nva\r\n\r\nruncmd:\r\n  # Step 0: Set hostname lowercase (primary-nva / secondary-nva)\r\n  #         cloud-init hostname: module fires before runcmd — this overrides it cleanly.\r\n  - \"hostname $(echo __ROLE__ | tr '[:upper:]' '[:lower:]')-nva\"\r\n\r\n  # Step 1: Fetch the bootstrap script using FreeBSD base fetch\r\n  - \"/usr/bin/fetch -o /tmp/configureopnsense.sh '__URI__configureopnsense.sh'\"\r\n  - \"chmod +x /tmp/configureopnsense.sh\"\r\n\r\n  # Step 2: Execute bootstrap (canonical 4-arg contract: URI, Role, LocalCIDR, PeerIP)\r\n  #         stdout+stderr are teed to a persistent log for SSH-accessible post-deploy debugging.\r\n  - \"/tmp/configureopnsense.sh '__URI__' '__ROLE__' '__LOCAL_CIDR__' '__PEER_IP__' 2>&1 | /usr/bin/tee /var/log/opnsense-bootstrap.log\"\r\n\r\n  # Step 3: Sentinel — post-deploy validation polls for this file to confirm success\r\n  - \"echo \\\"bootstrap-ok-$(date -u +%Y%m%dT%H%M%SZ)\\\" > /var/run/opnsense-bootstrap-done\"\r\n",
+            "customDataYaml": "[replace(replace(replace(replace(variables('cloudInitTemplate'), '__URI__', parameters('bootstrapUri')), '__ROLE__', parameters('role')), '__LOCAL_CIDR__', parameters('localIP')), '__PEER_IP__', parameters('peerIP'))]",
+            "resolvedCustomData": "[if(empty(parameters('bootstrapUri')), if(empty(parameters('customData')), null(), parameters('customData')), base64(variables('customDataYaml')))]",
             "untrustedNicName": "[format('{0}-untrusted-nic', parameters('virtualMachineName'))]",
             "trustedNicName": "[format('{0}-trusted-nic', parameters('virtualMachineName'))]"
           },
@@ -1094,7 +1202,8 @@
                   "computerName": "[parameters('virtualMachineName')]",
                   "adminUsername": "[parameters('TempUsername')]",
                   "adminPassword": "[parameters('TempPassword')]",
-                  "linuxConfiguration": "[if(empty(parameters('adminSshKey')), null(), createObject('disablePasswordAuthentication', false(), 'ssh', createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('TempUsername')), 'keyData', parameters('adminSshKey'))))))]"
+                  "linuxConfiguration": "[if(empty(parameters('adminSshKey')), null(), createObject('disablePasswordAuthentication', false(), 'ssh', createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('TempUsername')), 'keyData', parameters('adminSshKey'))))))]",
+                  "customData": "[variables('resolvedCustomData')]"
                 },
                 "hardwareProfile": {
                   "vmSize": "[parameters('virtualMachineSize')]"
@@ -1743,17 +1852,9 @@
     }
   ],
   "outputs": {
-    "primaryTrustedIP": {
+    "providerElbPublicIpName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsensePrimaryName')), '2025-04-01').outputs.trustedNicIP.value]"
-    },
-    "secondaryTrustedIP": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName')), '2025-04-01').outputs.trustedNicIP.value]"
-    },
-    "trustedSubnetPrefix": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix]"
+      "value": "[variables('publicIPAddressName')]"
     }
   }
 }
