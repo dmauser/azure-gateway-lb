@@ -7,7 +7,101 @@
 
 ## Learnings
 
-### Session 4: Trusted Launch + Cloud-Init (2026-05-09)
+### Session 5: Path D-proper — customData + cloud-init wiring (2026-05-09T13:42:28-05:00)
+
+#### Bicep `loadTextContent + replace + base64` pattern for templated cloud-init
+
+The canonical pattern for baking a parameterised cloud-init YAML into a VM's `osProfile.customData`:
+
+```bicep
+// params
+param role        string = ''
+param localIP     string = ''
+param peerIP      string = ''
+param bootstrapUri string = ''
+param customData  string = ''   // backward-compat raw override
+
+// compile-time template load; runtime substitution
+var cloudInitTemplate = loadTextContent('../../cloud-init/opnsense-bootstrap.yaml')
+var customDataYaml = replace(replace(replace(replace(
+    cloudInitTemplate,
+    '__URI__',        bootstrapUri),
+    '__ROLE__',       role),
+    '__LOCAL_CIDR__', localIP),
+    '__PEER_IP__',    peerIP)
+var resolvedCustomData = empty(bootstrapUri) ? (empty(customData) ? null : customData) : base64(customDataYaml)
+
+// VM resource
+resource vm '...' = {
+  properties: {
+    osProfile: {
+      customData: resolvedCustomData
+      ...
+    }
+  }
+}
+```
+
+**Key rules:**
+- `loadTextContent(path)` is a **compile-time** expression; path is relative to the `.bicep` file. From `bicep/modules/VM/`, `../../cloud-init/` resolves correctly.
+- `replace(str, old, new)` is a **runtime** ARM function — works on runtime param values.
+- `base64(str)` is also a runtime function.
+- Setting a property to `null` in Bicep omits it from the ARM template (equivalent to not setting it). Safe for optional `customData`.
+- Conditional: use `bootstrapUri` as the gate (non-empty → template path; empty → raw override → null). This gives 3-tier backward compat.
+
+#### IP derivation from trusted subnet prefix in Bicep
+
+When you need VTEP IPs derived from an existing subnet's address prefix (a runtime value), avoid `cidrHost` for portability. Use string-split arithmetic instead:
+
+```bicep
+var trustedNetAddr = split(trustedSubnet.properties.addressPrefix, '/')[0]  // '10.0.0.32'
+var trustedOctets  = split(trustedNetAddr, '.')                             // ['10','0','0','32']
+var ipBase3        = '${trustedOctets[0]}.${trustedOctets[1]}.${trustedOctets[2]}'
+var primaryLocalIP    = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}/24'
+var primaryPeerIP     = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}'
+var secondaryLocalIP  = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/24'
+var secondaryPeerIP   = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}'
+```
+
+Convention: primary VTEP = base+4, secondary VTEP = base+5, /24 mask for OPNsense tunnel interface.
+
+#### deploy.azcli orchestration changes (Path D-prime → D-proper)
+
+**Deleted from deploy.azcli:**
+- `opn_script_uri` variable
+- `az deployment group show` calls to read `primaryTrustedIP`, `secondaryTrustedIP`, `trustedSubnetPrefix`
+- Both `az vm run-command invoke` blocks (parallel `&` + `wait`)
+- 90 s grace sleep + 20×30 s VM restart poll loop
+
+**Added to deploy.azcli:**
+- `OPN_BOOTSTRAP_URI` env var with default GitHub raw URL
+- `bootstrapUri="$OPN_BOOTSTRAP_URI"` in the `az deployment group create --parameters` block
+
+**Deleted from glb-active-active.bicep:**
+- `output primaryTrustedIP string = opnSensePrimary.outputs.trustedNicIP`
+- `output secondaryTrustedIP string = opnSenseSecondary.outputs.trustedNicIP`
+- `output trustedSubnetPrefix string = trustedSubnet.properties.addressPrefix`
+- Comment block about run-command being the bootstrap path
+
+#### Placeholder contract with Ram (cloud-init YAML)
+
+File: `bicep/cloud-init/opnsense-bootstrap.yaml`
+Placeholders (exact, case-sensitive):
+| Placeholder    | Value source                       |
+|----------------|------------------------------------|
+| `__URI__`      | `bootstrapUri` param               |
+| `__ROLE__`     | `'Primary'` or `'Secondary'`       |
+| `__LOCAL_CIDR__` | VTEP IP with /24, e.g. `10.0.0.36/24` |
+| `__PEER_IP__`  | Peer VTEP IP, e.g. `10.0.0.37`    |
+
+Ram owns YAML content; Clu owns substitution wiring.
+
+#### Commits shipped (Session 5, 2026-05-09)
+- **6f79ee2:** Path D-proper — customData wiring + deploy.azcli cleanup
+  - 4 files changed, 172 insertions, 114 deletions
+  - `az bicep build` → exit 0; `bash -n deploy.azcli` → exit 0
+
+
 
 #### securityProfile object shapes applied
 
