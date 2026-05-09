@@ -58,6 +58,37 @@
 - **Consumer VM smoke test sequence:** Run 3f (GLB chain) before 3c (curl), so if curl fails you know whether nginx or GLB is the fault domain.
 - **SKILL extracted:** `trusted-launch-postdeploy-verification` — covers full-TL and vTPM-only verification patterns + cloud-init log inspection.
 
+### Phase 2 Gate — TL + Cloud-Init ACTUAL (2026-05-09T13:23:58-05:00)
+
+**What was reviewed:** commit `9c369e8` — Clu's Path B implementation (new `bicep/consumer-vm.bicep` top-level template, module `nicName` output, deploy.azcli rewire).
+
+**Verdict: ✅ APPROVE** — all 8 static gates green. Live smoke tests deferred to Daniel.
+
+**Gate outcomes:**
+
+| Gate | Result | Evidence |
+|------|--------|----------|
+| `az bicep build bicep/consumer-vm.bicep` | ✅ Exit 0 | 0 errors, 1 tool advisory (same as baseline) |
+| `az bicep build bicep/glb-active-active.bicep` | ✅ Exit 0 | No regression vs pre-Clu baseline |
+| What-if dry-run | ⏭ Deferred | Existing VNet required; az logged in but RG not provisioned |
+| TL shape — consumer VM | ✅ Full TL | `securityType: TrustedLaunch`, SB=true, vTPM=true, Gen2 SKU |
+| TL shape — OPNsense NVAs | ✅ vTPM-only | `securityType: TrustedLaunch`, SB=**false**, vTPM=true — ADR-compliant |
+| cloud-init wiring | ✅ Correct | `loadTextContent('../../cloud-init/consumer-vm.yaml')` → `base64()` → `osProfile.customData`; YAML parseable, installs nginx |
+| CSE removal (consumer) | ✅ Removed | Old step 7 `az vm extension set` gone from deploy.azcli |
+| OPNsense CSE | ✅ Intact | vmext.bicep still called in glb-active-active.bicep lines 316, 326 |
+| deploy.azcli orchestration | ✅ Correct | Step 5 = Bicep deploy; Step 6 = NIC attach (deterministic name); Step 7 = Bastion; no gaps |
+| Phase 2 regression | ✅ None | FreeBSD 14.4, API 2024-03-01, SSH params, @secure() all unchanged |
+
+**Bicep build delta vs pre-Clu baseline:** Zero — same warning (tool advisory), no new errors, same exit code.
+
+**ADR vs implementation drift:** None detected. `secureBootEnabled: false` on FreeBSD is exactly as the ADR specifies. `loadTextContent` + `base64()` pattern matches the cloud-init ADR's "Bicep canonical" approach.
+
+**New process gap (filed, non-blocking):** Clu did not drop `.squad/decisions/inbox/clu-trusted-launch-cloudinit.md`. Commit message body adequately documents the Path B decision rationale. Recommend Clu add the inbox drop as standard procedure for future feature work.
+
+**Non-blocking observation:** `deploy.azcli` step 6 hardcodes `consumer-vm-nic` instead of querying the Bicep `nicName` output dynamically. Safe because the NIC name is deterministic (default param), but future param overrides would break the assumption. Flag for Phase 3 hardening (consider `az deployment group show --query properties.outputs.nicName.value`).
+
+**SKILL extracted:** `tl-cloudinit-static-gate` — reusable pattern for reviewing Trusted Launch + cloud-init PRs via static analysis only (see `.squad/skills/tl-cloudinit-static-gate/SKILL.md`).
+
 ### Phase 3 Reviewer Gate — TL + Cloud-Init (2026-05-09, Spawn 2, In Flight)
 
 **Context:** Post-commit validation of Clu's commit 9c369e8 (Path B finalization).
@@ -77,3 +108,116 @@
 5. Deploy script refactoring correct (to verify)
 
 **Verdict file:** `.squad/decisions/inbox/quorra-tl-cloudinit-verdict.md` (in flight)
+
+---
+
+### Live Deploy Run 1 — 2026-05-09T13:42:28-05:00 (BLOCKED)
+
+**Context:** Daniel requested full live deploy to MSDN_Dmauser / westus3, smoke tests 3a–3g.
+
+**Pre-flight resolved:**
+- Marketplace terms for `thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs` NOT accepted on subscription. Fixed inline with `az vm image terms accept` (not a code change — subscription prereq).
+- Standard_B2s available in westus3 ✅
+
+**Consumer side (deployed, verified):**
+- Consumer RG, VNet, NSG, ELB PIP, consumer-elb LB, consumer VM, NIC attach — all succeeded.
+- 3a ✅ VM running: `PowerState/running` confirmed.
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, `secureBootEnabled: true`, `vTpmEnabled: true` — exact ADR spec.
+- 3b, 3c, 3f: deferred — provider not deployed.
+
+**Provider side (BLOCKER):**
+- `az deployment group create` for `bicep/glb-active-active.bicep` fails with:
+  `BadRequest: Use of TrustedLaunch setting is not supported for the provided image.`
+- Root cause: FreeBSD 14.4 (`14_4-release-amd64-gen2-ufs`) is NOT on Azure's Trusted Launch allowlist, despite being Gen2. The `securityType: 'TrustedLaunch'` + `vTpmEnabled: true` in `opnsense-vm-active-active.bicep` is rejected by the compute API.
+- Finding filed: `.squad/decisions/inbox/quorra-live-deploy-freebsd-trustedlaunch.md`
+
+**Cleanup:** Both RGs deleted (no-wait) — partial deployment. Re-deploy required after Clu's fix.
+
+**Learnings:**
+- **Gen2 ≠ Trusted Launch support.** Azure maintains a separate allowlist of images that support TrustedLaunch. A `-gen2-` SKU name does NOT guarantee TrustedLaunch is accepted by the API. Must verify via `az vm image show` and check `hyper_v_generation + features` or test against the API.
+- **Marketplace terms acceptance is a subscription-level prereq.** Not detectable by Bicep build or static analysis. Must be accepted per-subscription before first deploy. Add `az vm image terms accept` to deploy.azcli preflight or document it as a day-0 step.
+- **Robust re-run strategy:** When provider Bicep fails after consumer side succeeds, delete only the provider RG (not consumer) and re-run provider + chain steps. Consumer side is idempotent for most resources. The exception is `az network nic ip-config address-pool add` / `inbound-nat-rule add` which may already be attached — these return errors but are safe to ignore.
+- **Smoke test execution order matters:** 3a and 3d can run on consumer-only partial deploy. Run them early to preserve evidence before cleanup.
+
+---
+
+### Live Deploy Run 2 — 2026-05-09T13:42:28-05:00 (BLOCKED — new issue)
+
+**Context:** Full re-deploy after Flynn's commit d386f14 (securityProfile removed from all OPNsense Bicep modules). Both RGs deleted from Run 1. Fresh deploy.
+
+**Pre-flight:**
+- Marketplace terms preflight verified against Bicep `plan:` block — exact match (`thefreebsdfoundation / freebsd-14_4 / 14_4-release-amd64-gen2-ufs`). ✅
+- `securityProfile` absent from `opnsense-vm-active-active.bicep` — Flynn's fix confirmed. ✅
+
+**Env note — live-deploy WSL/Windows az shim:** The test environment uses WSL bash with a Python 3.6 shim to proxy `az` calls to the Windows az CLI (which holds auth). The shim converts `/mnt/c/...` WSL paths to Windows paths via `wslpath -w` before forwarding to Windows `az`. Python 3.6 compatibility required: `capture_output=True` → `stdout=subprocess.PIPE, stderr=subprocess.PIPE`. File: `.az-shim/az` (committed to gitignore scope — not tracked).
+
+**Consumer side (fully deployed):**
+- All consumer steps 1–6 succeeded. ELB PIP: `20.172.30.167`.
+- 3a ✅ Consumer VM running: `PowerState/running`.
+- 3b ✅ Cloud-init: `status: done`; `Setting up nginx` in log; `systemctl is-active ssh: active` — verified via `az vm run-command` (direct SSH on port 50000 timed out; secondary non-blocking issue).
+- 3c ✅ nginx: `curl http://20.172.30.167` → `Test Website on consumer-vm`.
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, `secureBootEnabled: true`, `vTpmEnabled: true`.
+
+**Provider side (NEW BLOCKER):**
+- OPNsense VMs (`provider-nva-primary`, `provider-nva-secondary`) deployed successfully. Both running.
+- 3e ✅ `securityProfile`: null on both NVAs — Flynn's Round 1 fix fully confirmed.
+- `az deployment group create` failed during extension sub-deployment (`vmext.bicep`):
+  - Extension type: `Microsoft.OSTCExtensions.CustomScriptForLinux` v1.4.1.0
+  - Failure phase: `--install` (handler self-install, before custom script runs)
+  - Error: `SyntaxError: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers` at `customscript.py:62: os.chmod('/var/log/azure/', 0700)`
+  - Root cause: Handler v1.4.1.0 written in Python 2 syntax; FreeBSD 14.4 uses Python 3.
+- Finding filed: `.squad/decisions/inbox/quorra-live-deploy-opnsense-extension.md` — owner Flynn.
+- 3f ❌ GLB chain: not established (deploy exited via `set -euo pipefail` before chaining step). `provider-nva-glb` exists with frontend `FW`, but consumer-elb gateway chain is null.
+- 3g ❌ VXLAN: OPNsense unconfigured — `configureopnsense.sh` never ran.
+
+**Cleanup:** Both RGs deleted (no-wait). Verdict filed at `.squad/decisions/inbox/quorra-live-deploy-verdict.md`.
+
+**Learnings:**
+- **`OSTCExtensions.CustomScriptForLinux` is Python 2 — incompatible with FreeBSD 14.4 (Python 3).** The extension handler v1.4.1.0 fails during its own install phase due to Python 2 octal literals. This extension line is legacy and targets Python 2 Linux hosts only. FreeBSD 14.4 with Python 3 cannot use it.
+- **Extension failure ≠ VM failure.** The OPNsense VMs successfully deployed (running, securityProfile correct) before the extension sub-deployment was attempted. Extension failures are a separate resource from the VM and do not cause VM deletion.
+- **`az vm run-command` as SSH fallback.** When NAT-based SSH (port 50000) is unavailable or timing out, `az vm run-command invoke --command-id RunShellScript` provides equivalent access for smoke test commands. Use this as the first fallback before declaring 3b a failure.
+- **`set -euo pipefail` cascades all downstream gates.** A single Bicep sub-resource failure (extension) causes the entire deploy script to exit, preventing GLB chaining and all downstream smoke tests. Future runs should consider isolating extension failures as non-fatal OR running chaining steps unconditionally after VM-level success.
+- **WSL bash + Windows az auth pattern:** On a dev machine where WSL az has stale/broken permissions and Windows az is authenticated, use a Python shim at `.az-shim/az` that converts WSL `/mnt/c/...` paths to Windows paths via `wslpath -w`. Shim must use Python 3.6-compatible subprocess calls.
+
+---
+
+### Live Deploy Run 3 — 2026-05-09T13:42:28-05:00 (BLOCKED — run-command FreeBSD ELF failure)
+
+**Context:** Full re-deploy after Flynn's commit `6a098ea` (Path D-prime: replace `OSTCExtensions.CustomScriptForLinux` with `az vm run-command invoke --command-id RunShellScript`). Both RGs deleted from Run 2. Fresh deploy.
+
+**Pre-flight:**
+- Both RGs confirmed absent before deploy. ✅
+- Flynn's `6a098ea` commit at HEAD. `run-command` present in `deploy.azcli` lines 346/356. vmext module calls absent. ✅
+- Shim fix: `.az-shim/az` shebang corrected `#!/usr/bin/env python3` → `#!/usr/bin/python3` (env couldn't locate python3 in WSL PATH; untracked dev-env file). ✅
+
+**Consumer side (fully deployed and green):**
+- Consumer ELB PIP: `172.182.234.236`.
+- 3a ✅ Consumer VM: `PowerState/running`.
+- 3b ✅ Cloud-init: `status: done`; nginx setup confirmed in log.
+- 3c ✅ nginx: `curl http://172.182.234.236` → `Test Website on consumer-vm` (direct path via consumer-elb; GLB chain not yet established).
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, SB=true, vTPM=true.
+
+**Provider side — NVAs deployed:**
+- `provider-nva-primary` and `provider-nva-secondary`: both `PowerState/running`. ✅
+- 3e ✅ securityProfile: null on both NVAs — Flynn Round 1 fix (`d386f14`) confirmed for the third time.
+
+**NEW BLOCKER — `az vm run-command invoke` on FreeBSD 14.4:**
+- Flynn's Path D-prime assumption: `--command-id RunShellScript` uses WAAgent built-in handler, bypassing extension framework.
+- **Actual behavior:** Azure implicitly installs `Microsoft.CPlat.Core.RunCommandLinux` v1.0.9 on the VM before executing the script. This extension's `run-command-extension` binary is compiled Linux ELF x86-64, which FreeBSD 14.4 cannot execute.
+- Exact failures:
+  - `lsof: command not found` (shim requires lsof; not on FreeBSD base)
+  - `run-command-extension: cannot execute binary file: Exec format error` (Linux ELF on FreeBSD)
+- Error code: `VMExtensionHandlerNonTransientError` — both primary and secondary NVAs failed identically.
+- Extension type: `Microsoft.CPlat.Core.RunCommandLinux` — the same extension Flynn identified as "❌ No — same Linux ELF issue" in his own decision matrix. His PATH D-prime assumption was wrong.
+- Finding filed: `.squad/decisions/inbox/quorra-round3-runcommand-blocker.md` — owner **Flynn** (design flaw) + **Ram** for Path D-proper implementation.
+- 3f ❌ GLB chain: null — deploy exited before chaining step.
+- 3g ❌ VXLAN: N/A — GLB chain never established.
+
+**Cleanup:** Both RGs deleted (no-wait) at 2026-05-09T13:42:28-05:00.
+
+**Learnings:**
+- **`az vm run-command invoke --command-id RunShellScript` on FreeBSD 14.4 is NOT extension-free.** Azure still installs `Microsoft.CPlat.Core.RunCommandLinux` (Linux ELF) before executing. WAAgent's built-in action handler is not invoked when the image's WAAgent version does not natively support RunShellScript action. This is a hard platform limitation: no `az vm run-command invoke` variant can bootstrap scripts on FreeBSD 14.4 without a Linux compatibility layer.
+- **All three Azure remote-execution mechanisms fail on FreeBSD 14.4:** `CustomScriptForLinux` (Python 2), `CustomScript` (Linux ELF), `RunCommandLinux` (Linux ELF). The only viable path is `customData` + bsdcloudinit (Path D-proper).
+- **Consumer side survives provider bootstrap failure.** 3a–3d all green even when provider completely fails. Always capture consumer smoke tests before cleanup.
+- **Lockout scope (Round 3):** Flynn authored the failed run-command approach. Per lockout rules, he cannot self-revise. Path D-proper routes to Ram (bsdcloudinit YAML for `configureopnsense.sh`) + Clu (Bicep `customData` parameter) + coordinator approval for any Flynn involvement.
+- **`#!/usr/bin/env python3` in WSL shim:** `env` may not locate `python3` in minimal WSL environments. Use absolute path `#!/usr/bin/python3` instead. Always test the shim with `chmod +x .az-shim/az && .az-shim/az account show` before deploying.
