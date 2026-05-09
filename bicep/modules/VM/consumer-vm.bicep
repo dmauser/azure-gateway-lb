@@ -108,6 +108,7 @@ resource consumerVm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
   }
 }
 
+output nicName string = nic.name
 output nicId string = nic.id
 output privateIP string = nic.properties.ipConfigurations[0].properties.privateIPAddress
 output vmId string = consumerVm.id

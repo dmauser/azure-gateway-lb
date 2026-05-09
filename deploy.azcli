@@ -195,23 +195,16 @@ az network lb inbound-nat-rule create \
     --backend-port 22 \
     -o none
 
-# 5) Deploy consumer VM with nginx using SSH key authentication (no password)
-az network nic create \
+# 5) Deploy consumer VM via Bicep (cloud-init + Trusted Launch)
+# Creates NIC (consumer-vm-nic) and VM atomically. cloud-init installs nginx during first boot,
+# so the VM is fully provisioned before the LB health probe fires — no CSE needed.
+az deployment group create \
+    --name "consumer-vm-deploy" \
     --resource-group "$consumer_rg" \
-    -n consumer-vm-nic \
-    --location "$consumer_location" \
-    --subnet vmsubnet \
-    --vnet-name consumer-vnet \
-    --output none
-az vm create \
-    -n consumer-vm \
-    -g "$consumer_rg" \
-    --image Ubuntu2204 \
-    --size Standard_B1s \
-    --admin-username "$ADMIN_USERNAME" \
-    --ssh-key-values "$SSH_PUBLIC_KEY" \
-    --nics consumer-vm-nic \
-    --location "$consumer_location" \
+    --template-file "${SCRIPT_DIR}/bicep/consumer-vm.bicep" \
+    --parameters \
+        adminUsername="$ADMIN_USERNAME" \
+        sshPublicKey="$SSH_PUBLIC_KEY" \
     --output none
 
 # 6) Attach consumer VM to LB Rule and NAT Rule
@@ -230,17 +223,7 @@ az network nic ip-config inbound-nat-rule add \
     --lb-name consumer-elb \
     --output none
 
-# 7) Install nginx and test website (Move this to cloud-init in a future phase)
-az vm extension set \
-    --resource-group "$consumer_rg" \
-    --vm-name consumer-vm \
-    --name CustomScript \
-    --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' \
-    --publisher Microsoft.Azure.Extensions \
-    --no-wait \
-    --output none
-
-# 8) Deploy Bastion for consumer (Optional — set BASTION_DEPLOY=true to enable)
+# 7) Deploy Bastion for consumer (Optional — set BASTION_DEPLOY=true to enable)
 if [[ "${BASTION_DEPLOY}" == "true" ]]; then
   az network vnet subnet create \
       --resource-group "$consumer_rg" \
