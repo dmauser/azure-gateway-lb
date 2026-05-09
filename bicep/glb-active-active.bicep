@@ -28,12 +28,6 @@ param existingTrustedSubnet string
 ])
 param PublicIPAddressSku string = 'Standard'
 
-@sys.description('URI for Custom OPN Script and Config')
-param OpnScriptURI string = 'https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/'
-
-@sys.description('Shell Script to be executed')
-param ShellScriptName string = 'configureopnsense.sh'
-
 @sys.description('Deploy Windows VM Trusted Subnet')
 param DeployWindows bool = false
 
@@ -313,25 +307,11 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
   }
 }
 
-module opnSensePrimaryScript 'modules/VM/vmext.bicep' = {
-  name: '${VMOPNsensePrimaryName}-Script'
-  params: {
-    virtualMachineName: VMOPNsensePrimaryName
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
-    ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${opnSensePrimary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
-  }
-}
-
-module opnSenseScondaryScript 'modules/VM/vmext.bicep' = {
-  name: '${VMOPNsenseSecondaryName}-Script'
-  params: {
-    virtualMachineName: VMOPNsenseSecondaryName
-    OPNScriptURI: OpnScriptURI
-    ShellScriptName: ShellScriptName
-    ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
-  }
-}
+// OPNsense bootstrap is performed post-deployment via 'az vm run-command invoke' in deploy.azcli.
+// Microsoft.OSTCExtensions/CustomScriptForLinux and Microsoft.Azure.Extensions/CustomScript
+// both require Python 2 / Linux-native extension handlers that are incompatible with FreeBSD 14.4.
+// WAAgent's built-in RunShellScript action (used by az vm run-command invoke) works on FreeBSD
+// without any extension installation and is the supported bootstrap path for this image.
 
 // Windows11 Client Resources
 module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {
@@ -406,3 +386,8 @@ module winvm 'modules/VM/windows11-vm.bicep' = if (DeployWindows) {
     winvmpublicip
   ]
 }
+
+// Outputs — consumed by deploy.azcli to pass correct IPs to az vm run-command (OPNsense bootstrap)
+output primaryTrustedIP string = opnSensePrimary.outputs.trustedNicIP
+output secondaryTrustedIP string = opnSenseSecondary.outputs.trustedNicIP
+output trustedSubnetPrefix string = trustedSubnet.properties.addressPrefix

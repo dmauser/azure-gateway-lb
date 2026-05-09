@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "14556414304197382945"
+      "templateHash": "298645284857600471"
     }
   },
   "parameters": {
@@ -61,20 +61,6 @@
       ],
       "metadata": {
         "description": "Specify Public IP SKU either Basic (lowest cost) or Standard (Required for HA LB)"
-      }
-    },
-    "OpnScriptURI": {
-      "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/",
-      "metadata": {
-        "description": "URI for Custom OPN Script and Config"
-      }
-    },
-    "ShellScriptName": {
-      "type": "string",
-      "defaultValue": "configureopnsense.sh",
-      "metadata": {
-        "description": "Shell Script to be executed"
       }
     },
     "DeployWindows": {
@@ -1379,155 +1365,6 @@
       ]
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "[format('{0}-Script', variables('VMOPNsensePrimaryName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "virtualMachineName": {
-            "value": "[variables('VMOPNsensePrimaryName')]"
-          },
-          "OPNScriptURI": {
-            "value": "[parameters('OpnScriptURI')]"
-          },
-          "ShellScriptName": {
-            "value": "[parameters('ShellScriptName')]"
-          },
-          "ShellScriptParameters": {
-            "value": "[format('{0} Primary {1} {2} {3} {4}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName')), '2025-04-01').outputs.trustedNicIP.value, reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsensePrimaryName')), '2025-04-01').outputs.trustedNicIP.value, reference(resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName')), '2025-04-01').outputs.frontendIPConfigurations.value[0].properties.privateIPAddress)]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "10741269099171741077"
-            }
-          },
-          "parameters": {
-            "virtualMachineName": {
-              "type": "string"
-            },
-            "OPNScriptURI": {
-              "type": "string"
-            },
-            "ShellScriptName": {
-              "type": "string"
-            },
-            "ShellScriptParameters": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2024-07-01",
-              "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
-              "location": "[resourceGroup().location]",
-              "properties": {
-                "publisher": "Microsoft.OSTCExtensions",
-                "type": "CustomScriptForLinux",
-                "typeHandlerVersion": "1.4",
-                "autoUpgradeMinorVersion": false,
-                "settings": {
-                  "fileUris": [
-                    "[format('{0}{1}', parameters('OPNScriptURI'), parameters('ShellScriptName'))]"
-                  ],
-                  "commandToExecute": "[format('sh {0} {1}', parameters('ShellScriptName'), parameters('ShellScriptParameters'))]"
-                }
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName'))]",
-        "[resourceId('Microsoft.Resources/deployments', variables('VMOPNsensePrimaryName'))]",
-        "[resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "[format('{0}-Script', variables('VMOPNsenseSecondaryName'))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "virtualMachineName": {
-            "value": "[variables('VMOPNsenseSecondaryName')]"
-          },
-          "OPNScriptURI": {
-            "value": "[parameters('OpnScriptURI')]"
-          },
-          "ShellScriptName": {
-            "value": "[parameters('ShellScriptName')]"
-          },
-          "ShellScriptParameters": {
-            "value": "[format('{0} Secondary {1} {2} {3}', parameters('OpnScriptURI'), reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName')), '2025-04-01').outputs.trustedNicIP.value, reference(resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName')), '2025-04-01').outputs.frontendIPConfigurations.value[0].properties.privateIPAddress)]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "10741269099171741077"
-            }
-          },
-          "parameters": {
-            "virtualMachineName": {
-              "type": "string"
-            },
-            "OPNScriptURI": {
-              "type": "string"
-            },
-            "ShellScriptName": {
-              "type": "string"
-            },
-            "ShellScriptParameters": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Compute/virtualMachines/extensions",
-              "apiVersion": "2024-07-01",
-              "name": "[format('{0}/CustomScript', parameters('virtualMachineName'))]",
-              "location": "[resourceGroup().location]",
-              "properties": {
-                "publisher": "Microsoft.OSTCExtensions",
-                "type": "CustomScriptForLinux",
-                "typeHandlerVersion": "1.4",
-                "autoUpgradeMinorVersion": false,
-                "settings": {
-                  "fileUris": [
-                    "[format('{0}{1}', parameters('OPNScriptURI'), parameters('ShellScriptName'))]"
-                  ],
-                  "commandToExecute": "[format('sh {0} {1}', parameters('ShellScriptName'), parameters('ShellScriptParameters'))]"
-                }
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', variables('internalLoadBalanceName'))]",
-        "[resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName'))]"
-      ]
-    },
-    {
       "condition": "[parameters('DeployWindows')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
@@ -1904,5 +1741,19 @@
         "[resourceId('Microsoft.Resources/deployments', variables('winvmpublicipName'))]"
       ]
     }
-  ]
+  ],
+  "outputs": {
+    "primaryTrustedIP": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsensePrimaryName')), '2025-04-01').outputs.trustedNicIP.value]"
+    },
+    "secondaryTrustedIP": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('VMOPNsenseSecondaryName')), '2025-04-01').outputs.trustedNicIP.value]"
+    },
+    "trustedSubnetPrefix": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix]"
+    }
+  }
 }

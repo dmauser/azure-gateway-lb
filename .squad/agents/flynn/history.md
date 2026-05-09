@@ -226,3 +226,51 @@ Grep revealed three modules had the securityProfile block (not just the one Quor
 
 **Next:** Clu implements Trusted Launch + cloud-init Bicep changes (parallel). Once merged, Flynn removes CSE step from deploy.azcli. CI workflow `.github/workflows/ci.yml` left for user enablement.
 
+---
+
+### 2026-05-09: Round 3 — OPNsense CSE Python 3 Blocker Resolved
+
+**Session:** Round 3 fix on request from Daniel Mauser — Quorra round 2 blocker  
+**Blocker:** `Microsoft.OSTCExtensions.CustomScriptForLinux` v1.4.1.0 handler uses Python 2 octal literal (`os.chmod('/var/log/azure/', 0700)`) — rejected by FreeBSD 14.4's Python 3 at parse time during handler `--install`.
+
+#### Investigation: FreeBSD 14.4 + Azure VM Extension Compatibility
+
+| Extension | Available in westus3? | FreeBSD 14.4 compatible? | Reason |
+|-----------|----------------------|--------------------------|--------|
+| `Microsoft.OSTCExtensions/CustomScriptForLinux` 1.4.x | ✅ (1.4.1.0) | ❌ BROKEN | Python 2 handler; FreeBSD has Python 3 only |
+| `Microsoft.OSTCExtensions/CustomScriptForLinux` 1.5.x | ✅ (1.5.4 latest) | ❌ NOT SUPPORTED | Handler still Python 2; OSTCExtensions officially unsupported on FreeBSD |
+| `Microsoft.Azure.Extensions/CustomScript` v2.x | ✅ (2.1.16 latest) | ❌ NOT SUPPORTED | Go binary compiled for Linux ELF; does not run on FreeBSD natively |
+| `Microsoft.CPlat.Core/RunCommandHandlerLinux` | ✅ (1.3.28) | ❌ NOT SUPPORTED | Same issue — Linux ELF binary |
+| `thefreebsdfoundation/*` (any extension) | ❌ NONE | — | No extensions published for FreeBSD in Azure Marketplace |
+
+**Conclusion:** No Azure VM extension supports FreeBSD 14.4. This is a hard platform limitation. Paths A, B, C all eliminated.
+
+#### Path Chosen: D-prime — WAAgent Action Run-Command via deploy.azcli
+
+The `az vm run-command invoke --command-id RunShellScript` uses WAAgent's built-in command execution handler, NOT the extension framework. WALinuxAgent runs on FreeBSD 14.4 and handles RunShellScript natively without requiring any extension to be installed.
+
+**Why run-command exits before reboot:** `configureopnsense.sh` patches `opnsense-bootstrap.sh.in` to replace `reboot` with `shutdown -r +1` (asynchronous, schedules reboot in 1 min and returns). The script completes all remaining steps within that window and exits. `az vm run-command invoke` receives the exit code before the reboot fires.
+
+#### Changes Shipped
+
+**`bicep/glb-active-active.bicep`:**
+- Removed `OpnScriptURI` and `ShellScriptName` parameters (only used by vmext calls)
+- Removed `opnSensePrimaryScript` module instantiation (`vmext.bicep`)
+- Removed `opnSenseScondaryScript` module instantiation (`vmext.bicep`)
+- Added outputs: `primaryTrustedIP`, `secondaryTrustedIP`, `trustedSubnetPrefix` — consumed by deploy.azcli run-command calls
+- `az bicep build` → exit code 0, ARM JSON regenerated
+
+**`deploy.azcli`:**
+- After Bicep deploy, queries the three new outputs to get NIC IPs + subnet prefix
+- Runs both NVA bootstrap scripts in parallel (bash background jobs `&` + `wait`)
+- Polls for VM restart after bootstrap (90 s initial grace + 20×30 s poll loop per VM)
+- `bash -n deploy.azcli` → exit code 0
+
+**`vmext.bicep`:** Untouched — retained as a module for potential future use with non-FreeBSD OS types.
+
+#### Reusable Pattern
+- FreeBSD-on-Azure extension compatibility lookup: `az vm extension image list --location <region> --publisher thefreebsdfoundation` → always empty. Conclusion: no Azure VM extension supports FreeBSD. Use WAAgent run-command instead.
+- Skill written: `.squad/skills/freebsd-on-azure-bootstrap/SKILL.md`
+
+**Status:** ✅ FIX SHIPPED — ready for Quorra round 3 deploy.
+
