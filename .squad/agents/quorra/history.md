@@ -248,3 +248,53 @@
 - **Consumer side survives provider bootstrap failure.** 3a–3d all green even when provider completely fails. Always capture consumer smoke tests before cleanup.
 - **Lockout scope (Round 3):** Flynn authored the failed run-command approach. Per lockout rules, he cannot self-revise. Path D-proper routes to Ram (bsdcloudinit YAML for `configureopnsense.sh`) + Clu (Bicep `customData` parameter) + coordinator approval for any Flynn involvement.
 - **`#!/usr/bin/env python3` in WSL shim:** `env` may not locate `python3` in minimal WSL environments. Use absolute path `#!/usr/bin/python3` instead. Always test the shim with `chmod +x .az-shim/az && .az-shim/az account show` before deploying.
+
+---
+
+### Live Deploy Round 5 — 2026-05-09T17:40:00-05:00 (BLOCKED — `python` vs `python3` in configureopnsense.sh)
+
+**Context:** Post-push deploy. Daniel pushed all 21 commits to origin/main (bd27042). 4-arg `configureopnsense.sh` live at GitHub main. Both RGs clean. Pre-flight confirmed: account MSDN_Dmauser ✅, origin/main = bd27042 ✅, URL 200 + 4-arg block ✅.
+
+**Consumer side (verified green):**
+- Consumer RG, VNet, NSG, ELB PIP `20.38.173.229`, consumer-elb, consumer VM — all deployed.
+- 3a ✅ Consumer VM: `PowerState/running`
+- 3b ✅ Cloud-init: `status: done` (via `az vm run-command`)
+- 3c ✅ nginx: `curl http://20.38.173.229` → `Test Website on consumer-vm` (direct path, GLB chain not yet active)
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, `secureBootEnabled: true`, `vTpmEnabled: true`
+
+**Provider side (deployed, NVAs running):**
+- Both NVAs (`provider-nva-primary`, `provider-nva-secondary`): `PowerState/running`
+- 3e ✅ securityProfile: null on both NVAs — Flynn Round 1 fix confirmed (4th time)
+- GLB `provider-nva-glb`: SKU=Gateway, tier=Regional, frontend FW at `10.0.0.36`
+
+**Finding 1 — GLB Chain Timing (non-blocking):**
+- Deploy script failed at GLB chain step: `InvalidGlobalResourceReference` (ARM propagation delay)
+- Manual retry 2 min later: exit code 0 ✅
+- 3f ✅ Chain confirmed: `gatewayLoadBalancer.id` = GLB FW ID non-empty
+- Root cause: ARM propagation delay after synchronous Bicep deploy. Fix: `sleep 60` in deploy.azcli before chain step (Flynn's artifact).
+
+**BLOCKER — Finding 2 — OPNsense Bootstrap Failure (3g, 3h FAIL):**
+- At 67 minutes post-NVA creation: OPNsense web GUI NOT responding (HTTP 000 on 50443/50444)
+- `curl http://consumer-elb-pip` via GLB chain: TIMEOUT — VXLAN not forwarding traffic
+- Root cause: `configureopnsense.sh` calls `python get_nic_gw.py $3` BEFORE the `ln -s /usr/local/bin/python3.11 /usr/local/bin/python` symlink is created. FreeBSD 14.4 Azure image has `python3`/`python3.11` but NOT `python`. `set -euo pipefail` exits script at line ~72. All downstream steps (opnsense-bootstrap.sh.in, sshd_config, VXLAN rc.syshook) never run.
+- SSH access not available (no port 22 NAT rule; only 50443→443, 50444→443 exist)
+- Sentinel `/var/run/opnsense-bootstrap-done` is unreliable — cloud-init `tee` pipeline masks script exit code
+- Owner: `scripts/configureopnsense.sh` (Ram's artifact) — fix must come from non-Ram author (lockout applies)
+- 3g ❌ VXLAN: FAIL (curl timeout through GLB chain)
+- 3h ❌ Bootstrap: FAIL (web GUI absent; SSH inaccessible; bootstrap effectively a no-op)
+
+**Finding 3 — Redeploy Idempotency (observation):**
+- Accidental second `bash ./deploy.azcli` run (false-negative az group show responses during wait) triggered consumer Bicep re-deploy which reset `frontendip1` WITHOUT `gatewayLoadBalancer` reference → GLB chain silently removed.
+- Manually re-established chain twice during testing.
+
+**Cleanup:** Both RGs deleted (no-wait) at 17:40:29 CDT.
+
+**Verdict file:** `.squad/decisions/inbox/quorra-live-deploy-verdict-round5.md`
+
+**Learnings:**
+- **`python` vs `python3` on FreeBSD 14.4:** Azure FreeBSD 14.4 marketplace image has Python 3.11 but the `python` symlink is NOT in PATH. Scripts must use `python3` or create the symlink before use.
+- **`set -euo pipefail` + `tee` masks exit code:** The cloud-init runcmd `script ... 2>&1 | tee log` always returns 0 (tee's exit). The sentinel `/var/run/opnsense-bootstrap-done` is written even when the script failed. Do not rely on sentinel presence as success proof.
+- **Transient `az group show` ResourceNotFound:** The `az group show` call can return `ResourceGroupNotFound` for RGs that DO exist (transient ARM read failures). Always retry before assuming deletion, or use `az group list --query "[?name=='...']"` as cross-check.
+- **GLB chain timing:** Deploy script's GLB chain step (immediately after provider Bicep) hits ARM propagation delay → `InvalidGlobalResourceReference`. Retry after 60–90s succeeds. Add `sleep 60` to deploy.azcli.
+- **OPNsense GUI = bootstrap done indicator:** If OPNsense web GUI (port 443) responds, bootstrap ran to completion. If absent after 60 minutes, bootstrap failed (regardless of sentinel file).
+- **No SSH NAT rule = no remote verification:** Current Bicep only exposes port 443 (50443/50444) for OPNsense management. Without Bastion or a port 22 NAT rule, post-deploy SSH verification is impossible. This blocks 3h gate permanently unless NAT rule is added.
