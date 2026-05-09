@@ -3,7 +3,8 @@
 **In this article**
 
 - [Introduction](#introduction)
-- [Network diagram](#network-diagram)
+- [Prerequisites](#prerequisites)
+- [Network diagram](#lab-network-diagram)
     - [Components and traffic flow](#components-and-traffic-flow)
     - [Considerations](#considerations)
 - [ARM Template](#arm-template)
@@ -28,10 +29,40 @@ GLB will be using a pair of open-source OPNsense NVAs as its backend, and we wil
 
 We assume you have some basic knowledge of what GLB is. If not, below are some references to bring you up to the speed on GLB:
 
-- **Microsoft Docs:** [Gateway Load Balancer](https://docs.microsoft.com/en-us/azure/load-balancer/gateway-overview)
+- **Microsoft Docs:** [Gateway Load Balancer](https://learn.microsoft.com/azure/load-balancer/gateway-overview)
 - **Azure Blog:** [Enhance third-party NVA availability with Azure Gateway Load Balancer—now in preview](https://azure.microsoft.com/en-us/blog/enhance-thirdparty-nva-availability-with-azure-gateway-load-balancer-now-in-preview/) - This article also goes over vendor-specific supportability for GLB
 - **John Savill's video**: [Azure Gateway Load Balancer Deep Dive](https://www.youtube.com/watch?v=JLx7ZFzjdSs)
 - **Jose Moreno's deep dive article:** [What language does the Azure Gateway Load Balancer speak?](https://blog.cloudtrooper.net/2021/11/11/what-language-does-the-azure-gateway-load-balancer-speak/)
+
+## Prerequisites
+
+### System Requirements
+
+- Azure subscription with sufficient quota for: 4 VMs, 3 Public IPs, 2 Load Balancers
+- Azure CLI installed and logged in (`az login`)
+- Bicep CLI (the script auto-installs if missing)
+- SSH keypair (the deployment requires `SSH_PUBLIC_KEY` env var)
+
+### Required environment variables
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `SSH_PUBLIC_KEY` | yes | — | Public key for VM SSH access (e.g. `~/.ssh/id_rsa.pub`) |
+| `SUBSCRIPTION_ID` | no | current | Azure subscription to deploy to |
+| `LOCATION` | no | `westus2` | Azure region |
+| `RG_CONSUMER` | no | `glb-consumer-rg` | Consumer resource group |
+| `RG_PROVIDER` | no | `glb-provider-rg` | Provider resource group |
+| `ADMIN_USERNAME` | no | `azureuser` | VM admin username |
+| `BASTION_DEPLOY` | no | `false` | Set `true` to deploy Bastion |
+
+### Quick start
+
+```bash
+export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
+bash deploy.azcli
+```
+
+> **Note:** `main-two-nics.bicep` (single-NVA, two-NIC topology) is archived under `archived/` and is no longer maintained. The canonical deployment is the active-active topology (`bicep/glb-active-active.bicep`).
 
 ## Lab Network diagram
 
@@ -429,8 +460,8 @@ The second scenario is for the customer-vm initiating an outbound call to get th
 
 ### Intrusion detection (IDS)
 
-(coming soon)
+IDS (Intrusion Detection System) capabilities are available in OPNsense and can be configured to monitor traffic for suspicious patterns. For advanced IDS/IPS setup and threat detection, see [OPNsense IDS/IPS documentation](https://docs.opnsense.org/). This lab does not configure L7 IDS by default but provides the foundation to add this capability.
 
 ### Layer 7 inspection
 
-(coming soon)
+Layer 7 (Application layer) inspection and filtering capabilities are available in OPNsense through its proxy and content filtering features. For advanced L7 filtering setup, see [OPNsense IDS/IPS docs](https://docs.opnsense.org/) for detailed configuration of HTTP/HTTPS inspection, DPI (Deep Packet Inspection), and application-layer threat detection. This lab does not configure L7 filtering by default but the GLB infrastructure supports adding these advanced inspection capabilities.

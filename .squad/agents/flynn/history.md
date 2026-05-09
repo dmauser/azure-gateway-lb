@@ -101,3 +101,45 @@ az network lb frontend-ip update \
 - Consumer and provider both default to `10.0.0.0/24` — acceptable for separate RGs/subs, but collides if peered
 
 **Status:** Ready for Quorra's live deployment test.
+
+---
+
+### 2026-05-09: Phase 3 — Documentation Consolidation Complete
+
+**Session:** Phase 3 documentation tasks on request from Daniel Mauser  
+**Deliverable:** Linux VXLAN tutorial migrated to docs/, README modernized with prerequisites and quick-start
+
+#### Key Learnings:
+
+1. **Tutorial vs. Script Distinction:** Files containing vim interactive commands (`:wq`) are inherently manual tutorials, not deployable scripts. Moving such files to `docs/` clarifies intent and reduces user confusion.
+
+2. **VNI Scope Clarity:** The linux-vxlan tutorial uses VNI 900/901 (independent test setup). This is separate from the main lab's VXLAN tunnel IDs (800/801). Documenting this upfront prevents tunnel misconfiguration when users adapt the tutorial.
+
+3. **Environment Variable Contract Critical:** Users deploying `deploy.azcli` without documentation of required/optional env vars hit friction. Phase 1 established the contract (SSH_PUBLIC_KEY required, LOCATION/RG_*/ADMIN_USERNAME optional with defaults). Exposing this in README prevents misdeployments.
+
+4. **Documentation Links Must Point to GA:** `docs.microsoft.com` URLs often redirect to preview or legacy docs. `learn.microsoft.com` is now the authoritative GA reference for Azure services. Link drift impacts user confidence.
+
+5. **Placeholder Removal Requires Direction:** "Coming soon" sections should be replaced with clear scope statements and links to related docs, not left ambiguous. Users interpret "coming soon" as "will definitely work in future"—a promise we can't keep.
+
+#### Phase 3 Changes:
+
+- **Moved:** `linux-vxlan.azcli` → `docs/linux-vxlan-tutorial.md` (git mv preserves history)
+- **Reformatted:** Tutorial now has clear header, numbered steps, code blocks, VNI scope explanation
+- **Updated README:**
+  - GLB docs link: `docs.microsoft.com` → `learn.microsoft.com`
+  - Added Prerequisites section with env var table (8 vars, defaults documented)
+  - Added Quick start code snippet
+  - Replaced "(coming soon)" on Layer 7/IDS with scope + OPNsense doc links
+  - Added archived template note
+  - Updated TOC to reference new Prerequisites section
+
+#### Documentation Maintenance Principles (Consolidate):
+
+1. Distinguish between reference materials (docs/) and executable scripts (root + scripts/)
+2. Always document env var contracts at deployment entrypoint
+3. Replace vague "coming soon" with explicit "out of scope" or "achievable via [reference]"
+4. Prefer GA documentation URLs; avoid preview/legacy redirects
+5. Interactive tutorials belong in docs/ with explicit "manual walkthrough" headers
+
+**Status:** Phase 3 complete. All three phases (1=unblock, 2=modernize, 3=polish) now concluded. Repository operationally ready for production use by team.
+
