@@ -56,3 +56,17 @@
 **Key pattern:** `get_nic_gw.py` takes an IP/CIDR string and returns the first host (gateway). So `$3` must always be `<ip>/<prefix>` form — not bare IP. Callers (Bicep/ARM customScriptExtension) must pass the NIC's full CIDR, not just the IP.
 
 **Phase 2 remaining:** `set -e` + error traps, VXLAN port persistence in XML, version bumps, shellcheck CI.
+
+---
+
+## Phase 2 TODO: FreeBSD Image Migration (Cross-Team)
+
+**Decision (Phase 0):** Migrate OPNsense images from MicrosoftOSTC FreeBSD 12.0 (EOL) to TheFreeBSDFoundation FreeBSD 14.4 (modern, maintained).
+
+**Impact on Ram's scripts:** When Bicep templates are updated with new image publisher/sku, the OPNsense VM boot sequence and provisioning will change (FreeBSD 14.4 may have different system utilities, Python paths, WALinuxAgent behavior). Ram should:
+- Verify `configureopnsense.sh` compatibility with FreeBSD 14.4 environment
+- Test WALinuxAgent v2.12.0.4 (or newer) on FreeBSD 14.4
+- Validate Python 3.11 availability in new OS image
+- Ensure `get_nic_gw.py` runs correctly on FreeBSD 14.4
+
+**Pending:** Clu to confirm OPNsense vendor support for FreeBSD 14.4 compatibility before Ram begins testing.
