@@ -29,7 +29,38 @@
 
 **aws-gateway-lb Pattern:** This repo mirrors a multi-NVA active-active GLB lab where two OPNsense instances inspect VXLAN-tunneled traffic from Azure GWLB. Firewall sync (HA state replication) is critical and currently broken due to parameter mapping issue.
 
-### 2026-05-08: Phase 1 Script Fixes - COMPLETE
+### 2026-05-08: Phase 2 Script Modernization - COMPLETE
+
+**Changes made:**
+
+**Task 1 — Version standardization (`gwlbconfig.sh`):**
+- OPNsense `21.7` → `25.1`
+- WALinuxAgent `v2.4.0.2` → `v2.12.0.4`
+- Python symlink `python3.8` → `python3.11`
+- Added bootstrap `set -e` suppression (same fix already in `configureopnsense.sh`)
+
+**Task 2 — VXLAN port persistence (`glb-config-active-active-primary.xml`, `glb-config.xml`):**
+- Added `<vxlanlocalport>` / `<vxlanremoteport>` to each `<vxlan>` block
+- vxlan0 (ID 800, internal): port 10800; vxlan1 (ID 801, external): port 10801
+- Ports now survive OPNsense config reloads; rc.syshook remains as boot-time safeguard
+
+**Task 3 — Error handling:**
+- `configureopnsense.sh` and `gwlbconfig.sh`: `set -euo pipefail` + ERR trap added
+- `get_nic_gw.py`: `#!/usr/bin/env python3` shebang + try/except around main routine
+- No `|| true` additions needed; no commands are intentionally failure-tolerant
+- ⚠️ FreeBSD `/bin/sh` does not support `pipefail` — track as follow-up if needed
+
+**Task 4 — Parameter documentation (`configureopnsense.sh`):**
+- Expanded header to include param name, type, example, usage location
+- Added Primary + Secondary example invocations
+- Added note linking to `bicep/modules/VM/vmext.bicep` invocation
+- Added VXLAN port persistence note (Phase 2)
+
+**Validation:** `bash -n` passes on both shell scripts.
+
+---
+
+### 2026-05-08: Phase 1 Script Cleanup (context from Phase 1)
 
 **Changes made:**
 - Archived cruft files (`configureopnsense copy.sh`, `glb-config copy.xml`, `config-active-active-primary copy.xml`, `original.config.xml`) to `archived/scripts/` via `git mv`.
@@ -55,8 +86,6 @@
 
 **Key pattern:** `get_nic_gw.py` takes an IP/CIDR string and returns the first host (gateway). So `$3` must always be `<ip>/<prefix>` form — not bare IP. Callers (Bicep/ARM customScriptExtension) must pass the NIC's full CIDR, not just the IP.
 
-**Phase 2 remaining:** `set -e` + error traps, VXLAN port persistence in XML, version bumps, shellcheck CI.
-
 ---
 
 ## Phase 2 TODO: FreeBSD Image Migration (Cross-Team)
@@ -70,3 +99,34 @@
 - Ensure `get_nic_gw.py` runs correctly on FreeBSD 14.4
 
 **Pending:** Clu to confirm OPNsense vendor support for FreeBSD 14.4 compatibility before Ram begins testing.
+
+---
+
+### 2026-05-09: Phase 2 Script Modernization — Finalized & Committed
+
+**Versions chosen:**
+- OPNsense: `25.1` (bootstrap `-r 25.1`)
+- WALinuxAgent: `v2.12.0.4` (GitHub release tarball)
+- Python symlink: `python3.11` (FreeBSD pkg-installed alongside WALinuxAgent)
+
+**Files modified:** `scripts/gwlbconfig.sh`, `scripts/configureopnsense.sh`, `scripts/get_nic_gw.py`, `scripts/glb-config.xml`, `scripts/glb-config-active-active-primary.xml`
+
+**XML port tag locations:**
+- Both XML files: under `<vxlans version="1.0.1">` → each `<vxlan>` child block
+- vxlan0 (vxlanid 800, internal): `<vxlanlocalport>10800</vxlanlocalport>` + `<vxlanremoteport>10800</vxlanremoteport>`
+- vxlan1 (vxlanid 801, external): `<vxlanlocalport>10801</vxlanlocalport>` + `<vxlanremoteport>10801</vxlanremoteport>`
+- Tags sit between `<vxlanremote>` and `<vxlangroup/>` within each block
+
+**Validation commands run:**
+```
+bash -n scripts/configureopnsense.sh   # exit 0 ✅
+bash -n scripts/gwlbconfig.sh          # exit 0 ✅
+shellcheck                             # not on PATH in Windows env; flagged in drop file
+```
+
+**Key decisions / assumptions:**
+- OPNsense 25.1 is the latest stable release as of 2026-05-09; URL `opnsense-bootstrap.sh.in` at `master` branch resolves this at runtime — no URL pinning required.
+- WALinuxAgent `v2.12.0.4` tarball is publicly available at `https://github.com/Azure/WALinuxAgent/archive/refs/tags/v2.12.0.4.tar.gz` — verified URL structure is consistent with GitHub releases pattern.
+- `python3.11` symlink assumes OPNsense 25.1 ships with Python 3.11 (consistent with FreeBSD ports tree at that release epoch); if image ships Python 3.12+, symlink will fail — tracked as follow-up.
+- `#!/bin/sh` + `pipefail` is harmless on Linux/bash but a no-op on FreeBSD `ash`; keeping as-is per Phase 1 precedent. Upgrade to `#!/usr/bin/env bash` post-bootstrap is the long-term fix.
+

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import re
 import socket
 import struct
@@ -33,6 +35,10 @@ def ipv4_range(ipaddr):
         for val in range(1 << (32 - cidr_int) + 2)]
     return addrs
 
-nic = sys.argv[1]
-#print(ipv4_range('10.0.1.0/24')[1])
-print(ipv4_range(nic)[1])
+try:
+    nic = sys.argv[1]
+    #print(ipv4_range('10.0.1.0/24')[1])
+    print(ipv4_range(nic)[1])
+except Exception as exc:
+    print(f"Error: {exc}", file=sys.stderr)
+    sys.exit(1)

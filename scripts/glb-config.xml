@@ -728,6 +728,8 @@
           <vxlanid>800</vxlanid>
           <vxlanlocal>lll.lll.lll.lll</vxlanlocal>
           <vxlanremote>rrr.rrr.rrr.rrr</vxlanremote>
+          <vxlanlocalport>10800</vxlanlocalport>
+          <vxlanremoteport>10800</vxlanremoteport>
           <vxlangroup/>
           <vxlandev/>
         </vxlan>
@@ -736,6 +738,8 @@
           <vxlanid>801</vxlanid>
           <vxlanlocal>lll.lll.lll.lll</vxlanlocal>
           <vxlanremote>rrr.rrr.rrr.rrr</vxlanremote>
+          <vxlanlocalport>10801</vxlanlocalport>
+          <vxlanremoteport>10801</vxlanremoteport>
           <vxlangroup/>
           <vxlandev/>
         </vxlan>

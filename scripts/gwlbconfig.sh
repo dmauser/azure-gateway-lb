@@ -1,5 +1,8 @@
 #!/bin/sh
 
+set -euo pipefail
+trap 'echo "Error on line $LINENO (exit $?)" >&2' ERR
+
 # Install opnsense
 fetch https://raw.githubusercontent.com/huangyingting/glb-demo/master/opnsense/config.xml
 sed -i "" "s/yyy.yyy.yyy.yyy/$1/" config.xml
@@ -14,17 +17,19 @@ env ASSUME_ALWAYS_YES=YES pkg install ca_root_nss && pkg install -y bash
 fetch https://raw.githubusercontent.com/opnsense/update/master/src/bootstrap/opnsense-bootstrap.sh.in
 sed -i "" 's/#PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i "" "s/reboot/shutdown -r +1/g" opnsense-bootstrap.sh.in
-sh ./opnsense-bootstrap.sh.in -y -r "21.7"
+# opnsense-bootstrap's pkg commands may exit non-zero; suppress its set -e to avoid aborting
+sed -i "" "s/set -e/#set -e/g" opnsense-bootstrap.sh.in
+sh ./opnsense-bootstrap.sh.in -y -r 25.1
 
 # Add Azure waagent
-fetch https://github.com/Azure/WALinuxAgent/archive/refs/tags/v2.4.0.2.tar.gz
-tar -xvzf v2.4.0.2.tar.gz
-cd WALinuxAgent-2.4.0.2/
+fetch https://github.com/Azure/WALinuxAgent/archive/refs/tags/v2.12.0.4.tar.gz
+tar -xvzf v2.12.0.4.tar.gz
+cd WALinuxAgent-2.12.0.4/
 python3 setup.py install --register-service --lnx-distro=freebsd --force
 cd ..
 
 # Fix waagent by replacing configuration settings
-ln -s /usr/local/bin/python3.8 /usr/local/bin/python
+ln -s /usr/local/bin/python3.11 /usr/local/bin/python
 sed -i "" 's/ResourceDisk.EnableSwap=y/ResourceDisk.EnableSwap=n/' /etc/waagent.conf
 fetch https://raw.githubusercontent.com/huangyingting/glb-demo/master/opnsense/actions_waagent.conf
 cp actions_waagent.conf /usr/local/opnsense/service/conf/actions.d

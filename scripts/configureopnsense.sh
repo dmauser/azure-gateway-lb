@@ -6,21 +6,60 @@
 #   configureopnsense.sh <uri_prefix> <role> <local_ip_cidr> <peer_ip>
 #
 # Parameters:
-#   $1  URI prefix   — base URL from which remote config files are fetched
-#                      (e.g. https://raw.githubusercontent.com/org/repo/main/scripts/)
-#   $2  Role         — "Primary" or "Secondary"
-#   $3  Local CIDR   — this NVA's private IP with prefix length (e.g. 10.0.1.5/24)
-#                      used to derive the LAN gateway (via get_nic_gw.py) and
-#                      as the VXLAN local address (IP portion only)
-#   $4  Peer IP      — the other NVA's private IP (no prefix)
-#                      Primary:   also written as the HA-sync target (synchronizetoip)
-#                      Both roles: used as the VXLAN remote address
+#   $1  URI prefix    Type: URL string (trailing slash required)
+#                     Example: https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/
+#                     Used: base URL for fetch of XML templates (glb-config-active-active-primary.xml /
+#                           glb-config.xml), get_nic_gw.py helper, and actions_waagent.conf
+#
+#   $2  Role          Type: string — "Primary" or "Secondary"
+#                     Example: Primary
+#                     Used: selects which XML template to apply; sets OPNsense hostname suffix
+#                           (OPNsense-Primary / OPNsense-Secondary); controls HA-sync substitution
+#                           (xxx.xxx.xxx.xxx replaced only for Primary)
+#
+#   $3  Local CIDR    Type: IPv4/prefix (CIDR notation, no spaces)
+#                     Example: 10.0.1.5/24
+#                     Used: passed to get_nic_gw.py to derive LAN gateway → yyy.yyy.yyy.yyy in XML;
+#                           IP portion (CIDR stripped) → lll.lll.lll.lll in XML and VXLAN local addr
+#
+#   $4  Peer IP       Type: IPv4 address (no prefix)
+#                     Example: 10.0.1.6
+#                     Used: rrr.rrr.rrr.rrr in XML (VXLAN remote addr, both roles);
+#                           xxx.xxx.xxx.xxx in XML (HA-sync synchronizetoip, Primary only)
 #
 # XML placeholder mapping:
-#   yyy.yyy.yyy.yyy  -> LAN gateway (derived from $3)
+#   yyy.yyy.yyy.yyy  -> LAN gateway (derived from $3 via get_nic_gw.py)
 #   xxx.xxx.xxx.xxx  -> peer NVA IP / HA-sync target ($4, Primary only)
-#   lll.lll.lll.lll  -> local NVA IP (stripped from $3)
+#   lll.lll.lll.lll  -> local NVA IP (IP portion of $3, CIDR stripped)
 #   rrr.rrr.rrr.rrr  -> peer NVA IP ($4)
+#
+# Example invocations:
+#   Primary NVA:
+#     sh configureopnsense.sh \
+#       https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/ \
+#       Primary 10.0.1.5/24 10.0.1.6
+#
+#   Secondary NVA:
+#     sh configureopnsense.sh \
+#       https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/ \
+#       Secondary 10.0.1.6/24 10.0.1.5
+#
+# Invocation context:
+#   This script is executed via Azure Custom Script Extension, configured in
+#   bicep/modules/VM/vmext.bicep. The module parameters map as follows:
+#     OPNScriptURI          -> $1 (URI prefix; also used as fileUris base)
+#     ShellScriptParameters -> "$2 $3 $4" (Role, LocalCIDR, PeerIP assembled in Bicep)
+#   The extension runs: sh configureopnsense.sh <OPNScriptURI> <ShellScriptParameters>
+#
+# VXLAN port persistence (Phase 2):
+#   VXLAN interfaces use non-standard ports: 10800 (vxlan0 / ID 800, internal)
+#   and 10801 (vxlan1 / ID 801, external). As of Phase 2, these ports are declared
+#   directly in the XML templates via <vxlanlocalport>/<vxlanremoteport> tags, ensuring
+#   the correct ports survive OPNsense config reloads. The rc.syshook startup hook
+#   (25-azure) also enforces them at boot as a secondary safeguard.
+
+set -euo pipefail
+trap 'echo "Error on line $LINENO (exit $?)" >&2' ERR
 
 # Derive bare local IP (strip CIDR prefix) for XML and VXLAN substitutions
 localip=$(echo $3 | cut -d'/' -f1)
