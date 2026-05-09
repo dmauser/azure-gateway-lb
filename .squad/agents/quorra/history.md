@@ -181,6 +181,33 @@
 
 ---
 
+### Live Deploy Round 4 — 2026-05-09T13:42:28-05:00 (BLOCKED — OPN_BOOTSTRAP_URI stale GitHub main)
+
+**Context:** Path D-proper. Ram's `opnsense-bootstrap.yaml` (commit `29b7f6f`) + Clu's Bicep/deploy.azcli wiring (commit `6f79ee2`). Both committed. Pre-deploy static checks run before deploy initiated.
+
+**Pre-flight static checks (all pass):**
+- Bicep build `glb-active-active.bicep`: ✅ Exit 0, 0 errors, 1 tool advisory (same baseline warning)
+- `opnsense-bootstrap.yaml` present and parseable: ✅
+- Placeholder contract verified: `__URI__` 3×, `__ROLE__` 4×, `__LOCAL_CIDR__` 2×, `__PEER_IP__` 2× — exact match to Ram's spec ✅
+- Commits 29b7f6f + 6f79ee2 in local history: ✅
+
+**BLOCKER found during pre-flight — deploy NOT initiated:**
+- `git log --oneline origin/main..HEAD` shows **21 local commits** ahead of `origin/main`.
+- `origin/main` is at `4145a76` — the pre-squad original repo ("Update deploy.azcli").
+- `OPN_BOOTSTRAP_URI` defaults to `https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/` — pointing at GitHub main = stale.
+- GitHub main's `configureopnsense.sh` is the OLD version: 6-argument interface (Primary uses `$5`, `$6`), `python` call (Python 2, not on FreeBSD 14.4), SingNic/TwoNics dead branches present.
+- Our cloud-init YAML calls it with 4 args. Result: `python` fails on FreeBSD 14.4; Primary `$5`/`$6` substitutions produce malformed OPNsense config.xml.
+- Finding filed: `.squad/decisions/inbox/quorra-live-deploy-verdict-round4.md`.
+- **Required action: `git push origin main` before Round 5.**
+
+**Learnings:**
+- **Pre-flight URI check is mandatory.** `OPN_BOOTSTRAP_URI` must be validated against the LIVE GitHub URL before deploying. A working local repo with 21 unpushed commits is invisible to the cloud-init fetch step.
+- **`git log --oneline origin/main..HEAD` is the definitive push-status check.** Any output = commits not on origin = fetch URI stale. Zero output = safe to use default URI.
+- **FreeBSD cloud-init bootstrap chain is fragile across script versions.** A 4-arg caller with a 6-arg script silently produces malformed XML. No error will surface until OPNsense VXLAN fails. Always verify URI points to matching script version.
+- **Do not initiate deploy when URI check fails.** The instructions are clear: file and stop. Avoid wasting deploy time and Azure credits on a run guaranteed to fail at `runcmd` step 2.
+
+---
+
 ### Live Deploy Run 3 — 2026-05-09T13:42:28-05:00 (BLOCKED — run-command FreeBSD ELF failure)
 
 **Context:** Full re-deploy after Flynn's commit `6a098ea` (Path D-prime: replace `OSTCExtensions.CustomScriptForLinux` with `az vm run-command invoke --command-id RunShellScript`). Both RGs deleted from Run 2. Fresh deploy.
