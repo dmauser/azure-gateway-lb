@@ -43,16 +43,19 @@ securityProfile: {
 - Path is relative to the `.bicep` file; `../../cloud-init/` resolves correctly from `bicep/modules/VM/`
 - `loadTextContent` + `base64` is a single expression — no intermediate variable needed if only used once
 
-#### Consumer VM discovery
-- Consumer VM is NOT in any Bicep template; it is currently deployed entirely via `deploy.azcli` imperative CLI calls
-- Created `bicep/modules/VM/consumer-vm.bicep` as a new module (future replacement for imperative consumer VM creation)
-- The CSE nginx install (deploy.azcli step 7: `az vm extension set --name CustomScript ...`) is NOT a Bicep resource — flagged for Flynn to remove after Bicep consumer deployment is adopted
-- No existing CSE resource to remove from Bicep; the "removal" is that the new module simply does not include one
+#### Consumer VM discovery — corrected by Quorra mid-flight
+- Consumer VM is NOT in any Bicep template; it was deployed entirely via `deploy.azcli` imperative CLI calls
+- **Quorra finding (mid-flight):** Path B selected — top-level `bicep/consumer-vm.bicep` created as canonical consumer deployment
+- `bicep/modules/VM/consumer-vm.bicep` is the reusable module (NIC + VM + cloud-init + full TL)
+- `bicep/consumer-vm.bicep` is the top-level deployable template (looks up existing VNet/subnet via `existing`, delegates to module)
+- `deploy.azcli` step 5 rewired: `az network nic create` + `az vm create` → `az deployment group create --template-file bicep/consumer-vm.bicep`
+- `deploy.azcli` step 7 (CSE nginx) removed — cloud-init handles it; NIC name `consumer-vm-nic` is deterministic so step 6 (LB attachment) needed no change
+- **Pattern for top-level consumer deployment:** accept VNet/subnet names as params, use `existing` resource lookup in Bicep for subnet ID, expose nicName output for CLI orchestration
 
 #### Build validation results
+- `az bicep build --file bicep/consumer-vm.bicep` → exit 0, 0 errors (top-level; loadTextContent via module chain resolves correctly)
 - `az bicep build --file bicep/glb-active-active.bicep` → exit 0, 0 errors, 0 linter warnings (one pre-existing upgrade-available warning from az CLI, not a Bicep error)
-- `az bicep build --file bicep/modules/VM/consumer-vm.bicep` → exit 0, 0 errors (loadTextContent resolves correctly)
-- `bicep/glb-active-active.json` regenerated in same commit
+- `bicep/glb-active-active.json` regenerated in commit 86732d8
 
 ---
 

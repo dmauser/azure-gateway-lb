@@ -2,7 +2,19 @@
 
 **Author:** Clu (IaC Engineer)  
 **Date:** 2026-05-09  
-**Commit:** 86732d8 — `feat(iac): Trusted Launch + cloud-init for consumer and OPNsense VMs`
+**Commits:**
+- `86732d8` — `feat(iac): Trusted Launch + cloud-init for consumer and OPNsense VMs` (initial)
+- `9c369e8` — `feat(iac): Path B — top-level consumer-vm.bicep + deploy.azcli rewire` (Path B)
+
+---
+
+## Implementation Path Decision
+
+**Path B chosen** (preferred per Daniel Mauser / Quorra finding). Rationale: Phase 0 Q1 decision — "Bicep is canonical; deploy.azcli is an orchestrator, not a VM author." The consumer VM was the last resource created imperatively inside deploy.azcli; moving it to Bicep completes that principle.
+
+Path A (--custom-data flag on az vm create) was rejected because:
+1. It contradicts the Phase 0 canonical Bicep decision.
+2. It leaves VM configuration scattered across deploy.azcli instead of being diff-trackable in Bicep/cloud-init YAML.
 
 ---
 
@@ -24,14 +36,15 @@
 
 **OPNsense image:** `thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs` — already Gen2 (Phase 2 pick); no change needed.
 
-### Track 2 — Cloud-Init for Consumer VM
+### Track 2 — Cloud-Init for Consumer VM (Path B)
 
 | Artifact | Path | Description |
 |----------|------|-------------|
 | Cloud-init YAML | `bicep/cloud-init/consumer-vm.yaml` | Installs nginx, writes index.html, enables+starts the service |
-| Consumer VM module | `bicep/modules/VM/consumer-vm.bicep` | New module with `customData: base64(loadTextContent(...))` |
+| Consumer VM module | `bicep/modules/VM/consumer-vm.bicep` | Module — NIC + VM with `customData: base64(loadTextContent(...))` + full Trusted Launch |
+| Consumer VM top-level | `bicep/consumer-vm.bicep` | **NEW** — standalone deployable template; looks up existing VNet/subnet; delegates to module |
 
-**Pattern used:**
+**Pattern used (module):**
 ```bicep
 var cloudInitData = base64(loadTextContent('../../cloud-init/consumer-vm.yaml'))
 // ...
@@ -41,55 +54,44 @@ osProfile: {
 }
 ```
 
-The consumer VM CSE (`az vm extension set --name CustomScript` in deploy.azcli step 7) is NOT a Bicep resource. The new `consumer-vm.bicep` module simply omits CSE entirely — cloud-init is the only provisioning mechanism. OPNsense CSE left unchanged per charter boundary.
+**deploy.azcli changes (Path B):**
+- **Step 5 replaced:** `az network nic create` + `az vm create` → `az deployment group create --template-file bicep/consumer-vm.bicep`
+  - NIC (`consumer-vm-nic`) is now created inside the Bicep template
+  - Step 6 (LB/NAT attachment) uses the same NIC name — no change needed
+- **Step 7 removed:** `az vm extension set --name CustomScript` deleted; cloud-init handles nginx
+- **Step renumbered:** Bastion is now step 7 (was 8)
+
+**vmext.bicep:** Unchanged — OPNsense CSE remains. Quorra finding 4 confirmed; no Bicep CSE removal was needed for the consumer path (it was never in Bicep).
 
 ---
 
 ## Deferred / Needs Follow-up
 
-### deploy.azcli Step 7 — Flynn action required
+### ~~deploy.azcli Step 7 — Flynn action required~~ — RESOLVED in Path B
 
-`deploy.azcli` line 233–241 contains:
-```bash
-# 7) Install nginx and test website (Move this to cloud-init in a future phase)
-az vm extension set \
-    --resource-group "$consumer_rg" \
-    --vm-name consumer-vm \
-    --name CustomScript \
-    --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' \
-    --publisher Microsoft.Azure.Extensions \
-    --no-wait \
-    --output none
-```
+Step 7 (`az vm extension set`) has been removed from deploy.azcli directly as part of the Path B rewire. No further Flynn action needed on the CSE removal.
 
-**Action needed (Flynn):** Once `consumer-vm.bicep` is integrated into the consumer-side deployment (replacing the imperative `az vm create` calls), this step becomes a no-op and should be removed. If deploy.azcli continues to be used for consumer VM creation, it should switch to pass `--custom-data bicep/cloud-init/consumer-vm.yaml` and remove the extension step.
+### Consumer Bicep Integration — COMPLETE
 
-Clu does not own deploy.azcli per charter boundaries.
-
-### Consumer Bicep Integration
-
-The new `consumer-vm.bicep` module is NOT yet referenced by any top-level Bicep template. Currently the consumer side is purely imperative (deploy.azcli). A future task should create `bicep/consumer.bicep` as a top-level consumer-side template that uses this module, completing the Bicep-ification of the consumer deployment.
+`bicep/consumer-vm.bicep` (top-level) is now the canonical consumer VM deployment. deploy.azcli step 5 calls it. Consumer VNet/NSG/ELB/Bastion remain imperative in deploy.azcli — those are out of scope for this task. Future task: create `bicep/consumer.bicep` to wrap the full consumer side if full Bicep-ification is desired.
 
 ### What-If Validation
 
-`az` was authenticated during this session but no test resource group was available for a live `az deployment group what-if` run. Deferred to Quorra (testing agent) per task instructions.
+No live Azure subscription was available for `az deployment group what-if` during this session. Deferred to Quorra's smoke-test gate per `docs/validation/trusted-launch-cloudinit-checklist.md`.
 
 ---
 
 ## Build Gate Evidence
 
 ```
+$ az bicep build --file bicep/consumer-vm.bicep
+WARNING: A new Bicep release is available: v0.43.8. Upgrade now by running "az bicep upgrade".
+Exit code: 0
+
 $ az bicep build --file bicep/glb-active-active.bicep
 WARNING: A new Bicep release is available: v0.43.8. Upgrade now by running "az bicep upgrade".
 Exit code: 0
 ```
-Zero errors. One WARNING is a pre-existing az CLI upgrade notice — not a Bicep compilation issue.
+Zero errors on both templates. One WARNING is a pre-existing az CLI upgrade notice — not a Bicep compilation issue.
 
-```
-$ az bicep build --file bicep/modules/VM/consumer-vm.bicep
-WARNING: A new Bicep release is available: v0.43.8. Upgrade now by running "az bicep upgrade".
-Exit code: 0
-```
-`loadTextContent` resolved correctly; base64 encoding confirmed at compile time.
-
-`bicep/glb-active-active.json` regenerated and committed in the same commit (86732d8).
+`bicep/glb-active-active.json` regenerated (commit 86732d8) — no OPNsense structure changes in Path B commit.
