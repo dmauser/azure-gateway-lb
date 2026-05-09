@@ -62,9 +62,11 @@ imageReference: {
 
 ---
 
-## Pattern B: vTPM-only Trusted Launch (FreeBSD / OPNsense)
+## Pattern B: NO securityProfile (FreeBSD / OPNsense — TL unavailable)
 
-Use when: The guest OS does **not** have a Microsoft-signed UEFI shim. Enabling Secure Boot would prevent booting.
+> ⛔ **Empirically confirmed 2026-05-09:** `thefreebsdfoundation/freebsd-14_4` image DOES NOT support `securityType: 'TrustedLaunch'`. Azure returns `BadRequest: "Use of TrustedLaunch setting is not supported for the provided image."` regardless of `secureBootEnabled` value.
+
+The correct pattern for OPNsense NVAs is **no `securityProfile` block at all**:
 
 ```bicep
 resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
@@ -72,27 +74,22 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
   location: resourceGroup().location
   properties: {
     // ... osProfile, hardwareProfile, storageProfile, networkProfile ...
-    // Trusted Launch: vTPM only — Secure Boot disabled.
-    // FreeBSD/OPNsense does not have a Microsoft-signed UEFI shim; enabling Secure Boot
-    // would prevent the VM from booting. vTPM provides attestation without the signing requirement.
-    securityProfile: {
-      securityType: 'TrustedLaunch'
-      uefiSettings: {
-        secureBootEnabled: false  // MUST be false for FreeBSD/OPNsense
-        vTpmEnabled: true
-      }
-    }
+    // securityProfile intentionally omitted: FreeBSD 14.4 does NOT support
+    // securityType 'TrustedLaunch' — image is not on Azure's TL allowlist.
+    // Deploy as Standard Gen2 VM.
   }
 }
 ```
 
-**Compatible image (OPNsense/FreeBSD example):**
+**What NOT to do:**
 ```bicep
-imageReference: {
-  publisher: 'thefreebsdfoundation'
-  offer: 'freebsd-14_4'
-  sku: '14_4-release-amd64-gen2-ufs'   // SKU name includes 'gen2' — Gen2 confirmed
-  version: 'latest'
+// ❌ WRONG — Azure rejects this for FreeBSD 14.4 even with secureBootEnabled: false
+securityProfile: {
+  securityType: 'TrustedLaunch'
+  uefiSettings: {
+    secureBootEnabled: false
+    vTpmEnabled: true
+  }
 }
 ```
 
@@ -124,14 +121,16 @@ securityProfile: trustedLaunch ? {
 
 ## OS Compatibility Matrix
 
-| OS | Secure Boot | vTPM | Notes |
-|----|:-----------:|:----:|-------|
-| Ubuntu 22.04 LTS Gen2 | ✅ | ✅ | `shim-signed` enrolled in Microsoft UEFI CA |
-| Ubuntu 20.04 LTS Gen2 | ✅ | ✅ | Same as 22.04 |
-| Windows Server 2019+ | ✅ | ✅ | Microsoft-signed by default |
-| FreeBSD 14.x (thefreebsdfoundation) | ❌ | ✅ | No signed shim; Secure Boot blocks boot |
-| OPNsense (FreeBSD-based) | ❌ | ✅ | Same as FreeBSD |
-| Custom/BYOS images | Check vendor | ✅ | Verify shim signing before enabling SB |
+| OS | TL Allowlisted | Secure Boot | vTPM | Notes |
+|----|:--------------:|:-----------:|:----:|-------|
+| Ubuntu 22.04 LTS Gen2 | ✅ | ✅ | ✅ | `shim-signed` enrolled in Microsoft UEFI CA |
+| Ubuntu 20.04 LTS Gen2 | ✅ | ✅ | ✅ | Same as 22.04 |
+| Windows Server 2019+ | ✅ | ✅ | ✅ | Microsoft-signed by default |
+| FreeBSD 14.x (thefreebsdfoundation) | ⛔ | ❌ | ❌ | **Entire `securityType: TrustedLaunch` rejected** — image not on Azure TL allowlist. Confirmed 2026-05-09 westus3. |
+| OPNsense (FreeBSD-based) | ⛔ | ❌ | ❌ | Same as FreeBSD — no securityProfile block at all |
+| Custom/BYOS images | Verify | Check vendor | ✅ | Must verify TL allowlist AND shim signing |
+
+> ⚠️ **Key lesson:** Gen2 capability is **necessary but not sufficient** for Trusted Launch. The image must also be on Azure's explicit TL allowlist. `az vm image show ... --query "features[?name=='SecurityType'].value"` is the ground truth — empty output = not TL-capable.
 
 ---
 

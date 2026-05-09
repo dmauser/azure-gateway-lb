@@ -31,6 +31,15 @@ az account show >/dev/null 2>&1 || { echo "ERROR: Run 'az login' first." >&2; ex
 
 az bicep version >/dev/null 2>&1 || az bicep install
 
+# Accept FreeBSD 14.4 marketplace terms — idempotent (safe to re-run; returns accepted: true on repeat runs).
+# Publisher/offer/plan match the image reference in bicep/modules/VM/opnsense-vm-active-active.bicep.
+# Required once per subscription; without this, OPNsense VM deployment fails with "MarketplacePurchaseEligibilityFailed".
+az vm image terms accept \
+    --publisher thefreebsdfoundation \
+    --offer freebsd-14_4 \
+    --plan 14_4-release-amd64-gen2-ufs \
+    --output none
+
 if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
   echo "ERROR: SSH_PUBLIC_KEY is required. Set it to your SSH public key string:" >&2
   echo "  export SSH_PUBLIC_KEY=\"\$(cat ~/.ssh/id_rsa.pub)\"" >&2

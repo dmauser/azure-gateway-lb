@@ -190,7 +190,35 @@ az network lb frontend-ip update \
 
 ---
 
-### Cross-Agent Context (2026-05-09 Session Resume)
+### 2026-05-09: FreeBSD TL Removal — Reviewer Lockout Fix
+
+**Session:** Reassignment from Quorra — reviewer lockout on Clu's Phase 3 Bicep work  
+**Deliverables:** Three tracks completed: Bicep fix, ADR update, deploy.azcli preflight
+
+#### Learnings
+
+**1. FreeBSD-on-Azure Trusted Launch: empirically fully unavailable**
+
+The Phase 3 ADR stated that `secureBootEnabled: false, vTpmEnabled: true` (vTPM-only TL) would work for FreeBSD 14.4 because it's a Gen2 image. This is **wrong**. Quorra's live deploy on `westus3` confirmed:
+
+- Azure maintains an explicit TL **allowlist** separate from Gen2 capability
+- `thefreebsdfoundation/freebsd-14_4` is NOT on that allowlist
+- Setting `securityType: 'TrustedLaunch'` with ANY combination of `secureBootEnabled/vTpmEnabled` is rejected: `BadRequest: "Use of TrustedLaunch setting is not supported for the provided image."`
+- The fix is to omit the `securityProfile` block entirely — not downgrade to `Standard`, just omit
+- Verify image TL support with: `az vm image show ... --query "features[?name=='SecurityType'].value"` — empty = not TL-capable
+
+**2. Marketplace-terms preflight pattern**
+
+FreeBSD 14.4 requires `az vm image terms accept --publisher thefreebsdfoundation --offer freebsd-14_4 --plan 14_4-release-amd64-gen2-ufs` before first deploy on any subscription. Without this, deployment fails at VM provisioning stage (after infrastructure is partially created) with `MarketplacePurchaseEligibilityFailed`. Pattern: add as idempotent preflight step in `deploy.azcli` alongside login + bicep install checks. Source publisher/offer/plan from the Bicep `plan:` block to avoid drift.
+
+**3. ADR-vs-reality gap this exposed**
+
+The trusted-launch ADR was written without empirical validation of the FreeBSD TL assumption. The gap: architectural proposals that touch OS-level Azure features (TL, Secure Boot, BYOS, accelerated networking) need an `az vm image show` feature query as an explicit pre-condition before writing Bicep. Lesson: for any new OS image, run `az vm image show --query "features"` and `az vm image terms show` before drafting the ADR.
+
+**4. Scope: all three OPNsense VM modules**
+
+Grep revealed three modules had the securityProfile block (not just the one Quorra identified): `opnsense-vm-active-active.bicep`, `opnsense-vm-sing-nic.bicep`, `opnsense-vm.bicep`. All three were fixed. Consumer VM (`consumer-vm.bicep`) untouched — Ubuntu 22.04 Gen2 TL works fine.
+
 
 **From Clu:** Phase 2 Bicep modernization complete (7 warnings → 0, FreeBSD 14.4 migration, SSH key parameters). Awaiting your implementation: Trusted Launch + cloud-init ADRs (`docs/architecture/*`). Changes target `opnsense-vm-active-active.bicep` and consumer VM module.
 

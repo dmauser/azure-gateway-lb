@@ -99,17 +99,11 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
         }
       ]
     }
-    // Trusted Launch: vTPM only — Secure Boot disabled.
-    // FreeBSD/OPNsense does not have a Microsoft-signed UEFI shim; enabling Secure Boot
-    // would prevent the VM from booting. vTPM provides attestation without the signing requirement.
-    // The freebsd-14_4 Gen2 SKU supports Trusted Launch in vTPM-only mode.
-    securityProfile: {
-      securityType: 'TrustedLaunch'
-      uefiSettings: {
-        secureBootEnabled: false
-        vTpmEnabled: true
-      }
-    }
+    // securityProfile intentionally omitted: FreeBSD 14.4 (thefreebsdfoundation/freebsd-14_4)
+    // does NOT support securityType 'TrustedLaunch' — Azure rejects with
+    // "Use of TrustedLaunch setting is not supported for the provided image."
+    // Empirically confirmed 2026-05-09 on westus3 (Quorra live deploy).
+    // OPNsense NVAs deploy as Standard Gen2 VMs with no securityProfile block.
   }
 }
 
