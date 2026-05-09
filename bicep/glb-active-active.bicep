@@ -2,7 +2,7 @@
 @sys.description('VM size, please choose a size which allow 2 NICs.')
 param virtualMachineSize string = 'Standard_B2s'
 
-@sys.description('OPN NVA Manchine Name')
+@sys.description('OPN NVA Machine Name')
 param virtualMachineName string
 
 @sys.description('Default Temporary Admin username (Used for JumpBox and temporarily deploy FreeBSD VM).')
@@ -12,7 +12,7 @@ param TempUsername string
 @secure()
 param TempPassword string
 
-@sys.description('Existing Virtual Nework Name')
+@sys.description('Existing Virtual Network Name')
 param existingVirtualNetworkName string
 
 @sys.description('Untrusted-Subnet Address Space')
@@ -21,7 +21,7 @@ param existingUntrustedSubnet string
 @sys.description('Trusted-Subnet Address Space')
 param existingTrustedSubnet string
 
-@sys.description('Specify Public IP SKU either Basic (lowest cost) or Standard (Required for HA LB)"')
+@sys.description('Specify Public IP SKU either Basic (lowest cost) or Standard (Required for HA LB)')
 @allowed([
   'Basic'
   'Standard'
@@ -37,6 +37,9 @@ param ShellScriptName string = 'configureopnsense.sh'
 @sys.description('Deploy Windows VM Trusted Subnet')
 param DeployWindows bool = false
 
+@sys.description('SSH public key for OPNsense admin user. When provided, key is added to authorized_keys. Leave empty to use password-only authentication.')
+param adminSshKey string = ''
+
 // Variables
 var VMOPNsensePrimaryName = '${virtualMachineName}-primary'
 var VMOPNsenseSecondaryName = '${virtualMachineName}-secondary'
@@ -46,7 +49,6 @@ var externalLoadBalanceName = 'provider-nva-elb'
 var externalLoadBalanceFIPConfName = 'FW'
 var externalLoadBalanceBAPName = 'OPNsense'
 var externalLoadBalanceProbeName = 'HTTPs'
-var externalLoadBalancingRuleName = 'WEB'
 var externalLoadBalanceOutRuleName = 'OutBound-OPNSense'
 var externalLoadBalanceNatRuleName1 = 'primary-nva-mgmt'
 var externalLoadBalanceNatRuleName2 = 'scondary-nva-mgmt'
@@ -113,11 +115,11 @@ module publicip 'modules/vnet/publicip.bicep' = {
 }
 
 // Build reference of existing subnets
-resource untrustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-11-01' existing = {
+resource untrustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   name: '${existingVirtualNetworkName}/${existingUntrustedSubnet}'
 }
 
-resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2020-11-01' existing = {
+resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' existing = {
   name: '${existingVirtualNetworkName}/${existingTrustedSubnet}'
 }
 
@@ -282,6 +284,7 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
   params: {
     TempPassword: TempPassword
     TempUsername: TempUsername
+    adminSshKey: adminSshKey
     trustedSubnetId: trustedSubnet.id
     untrustedSubnetId: untrustedSubnet.id
     virtualMachineName: VMOPNsenseSecondaryName
@@ -291,9 +294,6 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
     ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[1].id
   }
-  dependsOn: [
-    nsgopnsense
-  ]
 }
 
 module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
@@ -301,6 +301,7 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
   params: {
     TempPassword: TempPassword
     TempUsername: TempUsername
+    adminSshKey: adminSshKey
     trustedSubnetId: trustedSubnet.id
     untrustedSubnetId: untrustedSubnet.id
     virtualMachineName: VMOPNsensePrimaryName
@@ -310,10 +311,6 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     InternalLoadBalancerBackendAddressPoolId: ilb.outputs.backendAddressPools[0].id
     ExternalloadBalancerInboundNatRulesId: elb.outputs.inboundNatRules[0].id
   }
-  dependsOn: [
-    nsgopnsense
-    opnSenseSecondary
-  ]
 }
 
 module opnSensePrimaryScript 'modules/VM/vmext.bicep' = {
@@ -324,10 +321,6 @@ module opnSensePrimaryScript 'modules/VM/vmext.bicep' = {
     ShellScriptName: ShellScriptName
     ShellScriptParameters: '${OpnScriptURI} Primary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${opnSensePrimary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
   }
-  dependsOn: [
-    nsgopnsense
-    opnSensePrimary
-  ]
 }
 
 module opnSenseScondaryScript 'modules/VM/vmext.bicep' = {
@@ -338,10 +331,6 @@ module opnSenseScondaryScript 'modules/VM/vmext.bicep' = {
     ShellScriptName: ShellScriptName
     ShellScriptParameters: '${OpnScriptURI} Secondary ${trustedSubnet.properties.addressPrefix} ${opnSenseSecondary.outputs.trustedNicIP} ${ilb.outputs.frontendIPConfigurations[0].properties.privateIPAddress}'
   }
-  dependsOn: [
-    nsgopnsense
-    opnSenseSecondary
-  ]
 }
 
 // Windows11 Client Resources
@@ -378,10 +367,6 @@ module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {
       }
     ]
   }
-  dependsOn: [
-    opnSenseSecondary
-    opnSensePrimary
-  ]
 }
 
 module winvmpublicip 'modules/vnet/publicip.bicep' = if (DeployWindows) {
@@ -396,17 +381,13 @@ module winvmpublicip 'modules/vnet/publicip.bicep' = if (DeployWindows) {
       tier: 'Regional'
     }
   }
-  dependsOn: [
-    opnSenseSecondary
-    opnSensePrimary
-  ]
 }
 
-resource nsgwinvmexist 'Microsoft.Network/networkSecurityGroups@2021-03-01' existing = {
+resource nsgwinvmexist 'Microsoft.Network/networkSecurityGroups@2023-09-01' existing = {
   name: winvmnetworkSecurityGroupName
 }
 
-resource winvmpublicipexist 'Microsoft.Network/publicIPAddresses@2021-03-01' existing = {
+resource winvmpublicipexist 'Microsoft.Network/publicIPAddresses@2023-09-01' existing = {
   name: winvmpublicipName
 }
 module winvm 'modules/VM/windows11-vm.bicep' = if (DeployWindows) {
@@ -421,8 +402,6 @@ module winvm 'modules/VM/windows11-vm.bicep' = if (DeployWindows) {
     virtualMachineSize: 'Standard_B4ms'
   }
   dependsOn: [
-    opnSenseSecondary
-    opnSensePrimary
     nsgwinvm
     winvmpublicip
   ]

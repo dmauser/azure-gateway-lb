@@ -124,7 +124,57 @@
 
 ---
 
-## Phase 2 TODO: FreeBSD Image Migration
+## Session 3: Phase 2 Bicep Modernization (2026-05-09)
+**Scope:** API version audit, hygiene cleanup, FreeBSD image migration, SSH key parameter, JSON rebuild.
+
+### API Version Table Applied
+
+| Resource Type | Old | New | Files |
+|---|---|---|---|
+| Microsoft.Network/* (LB, NIC, NSG, PIP, VNet, RouteTable, Subnet) | `2023-09-01` | `2023-09-01` | All vnet modules — **already current**, no change needed |
+| Microsoft.Compute/virtualMachines | `2024-03-01` | `2024-03-01` | opnsense-vm-active-active, opnsense-vm, windows11-vm, opnsense-vm-sing-nic — **already current** |
+| Microsoft.Compute/virtualMachines/extensions | `2024-07-01` | `2024-07-01` | vmext.bicep, opnsense-vm-sing-nic.bicep — **already current** (Phase 1) |
+| Microsoft.Resources/resourceGroups | `2020-06-01` | `2022-09-01` | rg.bicep — **bumped** |
+
+**Finding:** Phase 1 API version work was more complete than expected. Only `rg.bicep` required a bump.
+
+### FreeBSD Image Migration
+- **From:** `thefreebsdfoundation/freebsd-13_5/13_5-release` (active-active modules) and `MicrosoftOSTC/FreeBSD/12.0` (sing-nic)
+- **To:** `thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs` (all OPNsense modules)
+- **Verification method:** Live CLI query `az vm image list --publisher thefreebsdfoundation --offer freebsd-14_4 --all` — returned version `14.4.0` with 6 SKU variants
+- **SKU chosen:** `14_4-release-amd64-gen2-ufs` — AMD64, Gen2, UFS filesystem; best fit for Standard_B2s which supports Gen2
+- **Plan block updated:** publisher/product/name all updated in resource `plan:` blocks
+- **Files changed:** `opnsense-vm-active-active.bicep`, `opnsense-vm.bicep`, `opnsense-vm-sing-nic.bicep`
+
+### Hygiene Findings (glb-active-active.bicep)
+
+| Item | Status | Action |
+|---|---|---|
+| Unused `externalLoadBalancingRuleName` variable | **Not found** — already absent from file | No action |
+| Typos: "Manchine", "Nework" | **Not found** — grep returned no matches | No action |
+| `dependsOn: [opnSenseSecondary]` in opnSensePrimary | **Removed** — no actual output dependency |
+| `dependsOn: [opnSenseSecondary, opnSensePrimary]` in nsgwinvm | **Removed** — no output dependency |
+| `dependsOn: [opnSenseSecondary, opnSensePrimary]` in winvmpublicip | **Removed** — no output dependency |
+| `dependsOn: [opnSenseSecondary, opnSensePrimary, nsgwinvm, winvmpublicip]` in winvm | **Partially removed** — kept nsgwinvm/winvmpublicip (required: `existing` references can't be auto-inferred by Bicep) |
+
+**Warning count:** Dropped from 7 (Phase 1 end) to 0 linter warnings. Build output confirms clean compile.
+
+### SSH Key + Key Vault Parameter Contract
+- **Added:** `param adminSshKey string = ''` to `opnsense-vm-active-active.bicep`, `opnsense-vm.bicep`, `opnsense-vm-sing-nic.bicep`, and `glb-active-active.bicep` (propagated through)
+- **Pattern:** When `adminSshKey` is non-empty, `linuxConfiguration.ssh.publicKeys` is injected into `osProfile` via ternary; `disablePasswordAuthentication: false` keeps both auth methods available for initial deployment flexibility
+- **Key Vault comment block:** Already present in both active modules from Phase 1; added to `opnsense-vm-sing-nic.bicep` in this session
+- **Missing from opnsense-vm-sing-nic.bicep:** Also added `@secure()` decorator to TempPassword (was absent)
+
+### AVM Candidates (flagged, NOT migrated)
+- `modules/vnet/lb.bicep` → AVM module `avm/res/network/load-balancer` — good candidate
+- `modules/vnet/nsg.bicep` → AVM module `avm/res/network/network-security-group` — good candidate
+- `modules/vnet/vnet.bicep` → AVM module `avm/res/network/virtual-network` — good candidate
+- **Decision:** Do not migrate wholesale in Phase 2 — flag for Phase 3 or dedicated AVM migration sprint
+
+### Build Validation
+- `az bicep build --file bicep/glb-active-active.bicep` → **exit code 0, 0 errors, 0 linter warnings**
+- `bicep/glb-active-active.json` regenerated (timestamp 2026-05-09T13:17 local)
+
 
 **Decision (Phase 0):** Migrate OPNsense images from MicrosoftOSTC FreeBSD 12.0 (EOL) to TheFreeBSDFoundation FreeBSD 14.4 (modern, maintained).
 

@@ -2,8 +2,19 @@ param untrustedSubnetId string
 param trustedSubnetId string
 param virtualMachineName string
 param TempUsername string
+// To pass TempPassword from Key Vault, use a parameters file like:
+// {
+//   "TempPassword": {
+//     "reference": {
+//       "keyVault": { "id": "/subscriptions/.../vaults/<vault>" },
+//       "secretName": "<secret>"
+//     }
+//   }
+// }
 @secure()
 param TempPassword string
+@sys.description('SSH public key for admin user. When provided, key is added to authorized_keys. Leave empty to use password-only authentication.')
+param adminSshKey string = ''
 param virtualMachineSize string
 param nsgId string = ''
 param ExternalLoadBalancerBackendAddressPoolId string
@@ -36,14 +47,30 @@ module trustedNic '../vnet/privateniclb.bicep' = {
   }
 }
 
-resource OPNsense 'Microsoft.Compute/virtualMachines@2021-03-01' = {
+resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
   name: virtualMachineName
   location: resourceGroup().location
+  plan: {
+    name: '14_4-release-amd64-gen2-ufs'
+    product: 'freebsd-14_4'
+    publisher: 'thefreebsdfoundation'
+  }
   properties: {
     osProfile: {
       computerName: virtualMachineName
       adminUsername: TempUsername
       adminPassword: TempPassword
+      linuxConfiguration: empty(adminSshKey) ? null : {
+        disablePasswordAuthentication: false
+        ssh: {
+          publicKeys: [
+            {
+              path: '/home/${TempUsername}/.ssh/authorized_keys'
+              keyData: adminSshKey
+            }
+          ]
+        }
+      }
     }
     hardwareProfile: {
       vmSize: virtualMachineSize
@@ -53,9 +80,9 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2021-03-01' = {
         createOption: 'FromImage'
       }
       imageReference: {
-        publisher: 'MicrosoftOSTC'
-        offer: 'FreeBSD'
-        sku: '12.0'
+        publisher: 'thefreebsdfoundation'
+        offer: 'freebsd-14_4'
+        sku: '14_4-release-amd64-gen2-ufs'
         version: 'latest'
       }
     }
