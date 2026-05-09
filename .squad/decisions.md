@@ -32,6 +32,41 @@
 - **Unified parameter contract:** Both roles now accept identical 4-argument signature (URI, Role, LocalCIDR, PeerIP)
 - **VXLAN consolidation:** Shared config for both roles; no branching on roles for tunnel setup
 
+### Phase 3: Trusted Launch + Cloud-Init Implementation (2026-05-09)
+
+#### Path Decision: Consumer VM Bicep Module (Path B)
+
+**Author:** Clu (IaC Engineer)  
+**Commits:**
+- `86732d8` — `feat(iac): Trusted Launch + cloud-init for consumer and OPNsense VMs` (initial)
+- `9c369e8` — `feat(iac): Path B — top-level consumer-vm.bicep + deploy.azcli rewire` (Path B)
+
+**Implementation Path:** Path B chosen (per Quorra finding). Rationale: Phase 0 Q1 decision — "Bicep is canonical; deploy.azcli is an orchestrator, not a VM author." Created `bicep/modules/VM/consumer-vm.bicep` and top-level `bicep/consumer-vm.bicep`.
+
+**Trusted Launch Changes:**
+- **Consumer VM:** `secureBootEnabled=true`, `vTpmEnabled=true` (Ubuntu 22.04 Gen2 with signed UEFI shim)
+- **OPNsense VMs:** `secureBootEnabled=false`, `vTpmEnabled=true` (FreeBSD 14.4 — no signed shim)
+- **Image:** Consumer uses `Canonical/0001-com-ubuntu-server-jammy/22_04-lts-gen2` (explicit Gen2 required)
+
+**Cloud-Init Track:**
+- Cloud-init YAML at `bicep/cloud-init/consumer-vm.yaml` (nginx setup)
+- Consumer VM module implements `customData: base64(loadTextContent(...))`
+- `deploy.azcli` step 5 rewired: `az deployment group create --template-file bicep/consumer-vm.bicep`
+- Step 7 (`az vm extension set` for CSE) removed; cloud-init handles nginx
+- Both Bicep templates build clean (exit code 0)
+
+#### Validation Checkpoint (Quorra)
+
+**Status:** Reviewer gate in flight. Verdict pending at `.squad/decisions/inbox/quorra-tl-cloudinit-verdict.md`.
+
+**Pre-commit findings (quorra-tl-cloudinit-validation.md):**
+- ✅ Bicep build baseline: clean (exit 0)
+- ✅ ADR Finding 3: `securityType: 'TrustedLaunch'` required for vTPM-only — correctly implemented
+- ✅ ADR Finding 4: CSE removal scope is `deploy.azcli` step 7, not `vmext.bicep` — verified, `vmext.bicep` untouched
+- ⚠️ ADR Finding 2: Image ref mismatch (ADR says `14_1`, codebase uses `14_4`) — update ADR command when running
+- ✅ Consumer Bicep Integration: complete; future task to wrap full consumer side in `bicep/consumer.bicep`
+- ⏳ What-If Validation: deferred to post-commit smoke tests per `docs/validation/trusted-launch-cloudinit-checklist.md`
+
 ## Governance
 
 - All meaningful changes require team consensus

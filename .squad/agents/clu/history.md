@@ -48,6 +48,11 @@ securityProfile: {
 - **Quorra finding (mid-flight):** Path B selected — top-level `bicep/consumer-vm.bicep` created as canonical consumer deployment
 - `bicep/modules/VM/consumer-vm.bicep` is the reusable module (NIC + VM + cloud-init + full TL)
 - `bicep/consumer-vm.bicep` is the top-level deployable template (looks up existing VNet/subnet via `existing`, delegates to module)
+
+#### Commits shipped (Session 4, 2026-05-09)
+- **86732d8:** Initial TL + cloud-init — both VM types, Bicep builds clean
+- **9c369e8:** Path B finalization — consumer-vm.bicep module + top-level deployable + deploy.azcli step 5 rewire (az deployment group create) + step 7 removal (CSE deleted, cloud-init handles nginx) + nicName output added to VM module
+- Both Bicep builds clean post-commit (exit 0, 0 errors)
 - `deploy.azcli` step 5 rewired: `az network nic create` + `az vm create` → `az deployment group create --template-file bicep/consumer-vm.bicep`
 - `deploy.azcli` step 7 (CSE nginx) removed — cloud-init handles it; NIC name `consumer-vm-nic` is deterministic so step 6 (LB attachment) needed no change
 - **Pattern for top-level consumer deployment:** accept VNet/subnet names as params, use `existing` resource lookup in Bicep for subnet ID, expose nicName output for CLI orchestration
