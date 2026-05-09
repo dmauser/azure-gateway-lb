@@ -3,6 +3,7 @@ param trustedSubnetId string
 param publicIPId string = ''
 param virtualMachineName string
 param TempUsername string
+@secure()
 param TempPassword string
 param virtualMachineSize string
 param nsgId string = ''

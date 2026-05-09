@@ -12,7 +12,7 @@
       "value": "azureuser"
     },
     "TempPassword": {
-      "value": "P@ssw0rd!1234&Azure"
+      "value": "REDACTED-SEE-GIT-HISTORY-FOR-WHY-THIS-WAS-REMOVED"
     },
     "existingVirtualNetworkName": {
       "value": "OPN-VNET"
