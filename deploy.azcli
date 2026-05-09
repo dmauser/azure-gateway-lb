@@ -347,6 +347,27 @@ az account list --query "[?isDefault == \`true\`].{Name:name, IsDefault:isDefaul
 # If provider and consumer are in different subscriptions, switch to provider sub here:
 # az account set --subscription "$PROVIDER_SUBSCRIPTION_ID"
 
+# Wait for GLB frontend IP to be queryable — ARM propagation can lag 60–120 s after Bicep
+# deploy completion, causing "InvalidGlobalResourceReference" on the first chain attempt.
+echo "Waiting for GLB frontend IP (provider-nva-glb/FW) to be queryable..."
+glb_attempt=0
+glb_max=24  # 24 × 5 s = 120 s hard ceiling
+until az network lb frontend-ip show \
+        -g "$provider_rg" \
+        --lb-name provider-nva-glb \
+        --name FW \
+        --query id \
+        -o tsv >/dev/null 2>&1; do
+  glb_attempt=$((glb_attempt + 1))
+  if [[ $glb_attempt -ge $glb_max ]]; then
+    echo "ERROR: GLB frontend not queryable after $((glb_max * 5)) s — aborting chain." >&2
+    exit 1
+  fi
+  echo "  GLB not yet queryable (attempt $glb_attempt/$glb_max), retrying in 5 s..."
+  sleep 5
+done
+echo "GLB frontend IP queryable — proceeding with chain."
+
 # Set Gateway Load Balancer (provider-nva-glb) frontend resource ID as variable
 glbfeid=$(az network lb frontend-ip show \
     -g "$provider_rg" \

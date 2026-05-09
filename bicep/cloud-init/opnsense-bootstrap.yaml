@@ -37,8 +37,8 @@ runcmd:
   - "chmod +x /tmp/configureopnsense.sh"
 
   # Step 2: Execute bootstrap (canonical 4-arg contract: URI, Role, LocalCIDR, PeerIP)
-  #         stdout+stderr are teed to a persistent log for SSH-accessible post-deploy debugging.
-  - "/tmp/configureopnsense.sh '__URI__' '__ROLE__' '__LOCAL_CIDR__' '__PEER_IP__' 2>&1 | /usr/bin/tee /var/log/opnsense-bootstrap.log"
-
-  # Step 3: Sentinel — post-deploy validation polls for this file to confirm success
-  - "echo \"bootstrap-ok-$(date -u +%Y%m%dT%H%M%SZ)\" > /var/run/opnsense-bootstrap-done"
+  #         Redirect stdout+stderr to log; do NOT pipe through tee — tee always exits 0,
+  #         masking the script's real exit code and causing the sentinel to be written on failure.
+  #         cat the log after so cloud-init's own log captures full output for debugging.
+  #         Sentinel written only on true success; failure sentinel written with exit code.
+  - "/tmp/configureopnsense.sh '__URI__' '__ROLE__' '__LOCAL_CIDR__' '__PEER_IP__' > /var/log/opnsense-bootstrap.log 2>&1; rc=$?; cat /var/log/opnsense-bootstrap.log; [ $rc -eq 0 ] && echo \"bootstrap-ok-$(date -u +%Y%m%dT%H%M%SZ)\" > /var/run/opnsense-bootstrap-done || echo \"bootstrap-failed-rc=$rc-$(date -u +%Y%m%dT%H%M%SZ)\" > /var/run/opnsense-bootstrap-failed; exit $rc"

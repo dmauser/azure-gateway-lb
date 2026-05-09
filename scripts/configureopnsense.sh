@@ -67,7 +67,7 @@ localip=$(echo $3 | cut -d'/' -f1)
 if [ "$2" = "Primary" ]; then
     fetch $1glb-config-active-active-primary.xml
     fetch $1get_nic_gw.py
-    gwip=$(python get_nic_gw.py $3)
+    gwip=$(python3 get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config-active-active-primary.xml
     sed -i "" "s/xxx.xxx.xxx.xxx/$4/" glb-config-active-active-primary.xml
     sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config-active-active-primary.xml
@@ -77,7 +77,7 @@ if [ "$2" = "Primary" ]; then
 elif [ "$2" = "Secondary" ]; then
     fetch $1glb-config.xml
     fetch $1get_nic_gw.py
-    gwip=$(python get_nic_gw.py $3)
+    gwip=$(python3 get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config.xml
     sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config.xml
     sed -i "" "s/rrr.rrr.rrr.rrr/$4/" glb-config.xml
@@ -118,7 +118,6 @@ python3 setup.py install --register-service --lnx-distro=freebsd --force
 cd ..
 
 # Fix waagent by replacing configuration settings
-ln -s /usr/local/bin/python3.11 /usr/local/bin/python
 ##sed -i "" 's/command_interpreter="python"/command_interpreter="python3"/' /etc/rc.d/waagent
 ##sed -i "" 's/#!\/usr\/bin\/env python/#!\/usr\/bin\/env python3/' /usr/local/sbin/waagent
 sed -i "" 's/ResourceDisk.EnableSwap=y/ResourceDisk.EnableSwap=n/' /etc/waagent.conf
