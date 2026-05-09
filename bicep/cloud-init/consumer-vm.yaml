@@ -1,0 +1,13 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - nginx
+write_files:
+  - path: /var/www/html/index.html
+    content: "Test Website on consumer-vm\n"
+    owner: www-data:www-data
+    permissions: '0644'
+runcmd:
+  - systemctl enable nginx
+  - systemctl start nginx

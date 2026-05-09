@@ -99,6 +99,17 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
         }
       ]
     }
+    // Trusted Launch: vTPM only — Secure Boot disabled.
+    // FreeBSD/OPNsense does not have a Microsoft-signed UEFI shim; enabling Secure Boot
+    // would prevent the VM from booting. vTPM provides attestation without the signing requirement.
+    // The freebsd-14_4 Gen2 SKU supports Trusted Launch in vTPM-only mode.
+    securityProfile: {
+      securityType: 'TrustedLaunch'
+      uefiSettings: {
+        secureBootEnabled: false
+        vTpmEnabled: true
+      }
+    }
   }
 }
 
