@@ -1,8 +1,39 @@
 {
   "agents": {
-    "flynn":  { "persistent_name": "Flynn",  "universe": "Tron", "created_at": "2026-05-08", "legacy_named": false, "status": "active" },
-    "clu":    { "persistent_name": "Clu",    "universe": "Tron", "created_at": "2026-05-08", "legacy_named": false, "status": "active" },
-    "ram":    { "persistent_name": "Ram",    "universe": "Tron", "created_at": "2026-05-08", "legacy_named": false, "status": "active" },
-    "quorra": { "persistent_name": "Quorra", "universe": "Tron", "created_at": "2026-05-08", "legacy_named": false, "status": "active" }
+    "flynn": {
+      "persistent_name": "Flynn",
+      "universe": "Tron",
+      "created_at": "2026-05-08",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "clu": {
+      "persistent_name": "Clu",
+      "universe": "Tron",
+      "created_at": "2026-05-08",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "ram": {
+      "persistent_name": "Ram",
+      "universe": "Tron",
+      "created_at": "2026-05-08",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "quorra": {
+      "persistent_name": "Quorra",
+      "universe": "Tron",
+      "created_at": "2026-05-08",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "dumont": {
+      "status": "active",
+      "legacy_named": false,
+      "created_at": "2026-05-09",
+      "universe": "Tron",
+      "persistent_name": "Dumont"
+    }
   }
 }

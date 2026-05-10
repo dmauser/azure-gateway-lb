@@ -173,3 +173,33 @@ python -c "import yaml; yaml.safe_load(open('bicep/cloud-init/opnsense-bootstrap
 ```
 All 4 placeholders verified present with exact spelling.
 
+---
+
+### 2026-05-09: OPNsense Serial Console XML — COMPLETE
+
+**Directive:** Enable Azure serial console output in OPNsense config XMLs.
+
+**Reference (dmauser/opnazure, commit 7a16066):**
+- `scripts/config.xml` lines 244-246
+- `scripts/config-active-active-primary.xml` lines 244-246
+- Pattern: `<serialspeed>115200</serialspeed>` + `<primaryconsole>video</primaryconsole>` + `<secondaryconsole>serial</secondaryconsole>`
+- No `<enableserial>` element — not used in the reference.
+- No `/boot.config` file required — reference repo contains none.
+
+**OPNsense serial-console XML pattern:**
+- `<serialspeed>115200</serialspeed>` — baud rate Azure expects; must match Azure Serial Console's 115200.
+- `<primaryconsole>video</primaryconsole>` — keeps VGA as primary (local console access unaffected).
+- `<secondaryconsole>serial</secondaryconsole>` — this is the key element; causes OPNsense/FreeBSD to multiplex console output to ttyS0 (COM1), which `az serial-console connect` captures.
+
+**Files modified:**
+- `scripts/glb-config.xml` (+4 lines: 3-line comment block + `<secondaryconsole>serial</secondaryconsole>`)
+- `scripts/glb-config-active-active-primary.xml` (+4 lines: same)
+
+**Validation:**
+- Both XMLs: `python -c "import xml.etree.ElementTree as ET; ET.parse(...)"` → OK
+- `git diff --stat`: 8 insertions, 0 deletions — purely additive
+
+**boot.config note:** The `-D -h` `/boot.config` kernel cmdline override was NOT found in dmauser/opnazure. No `boot.config` artifact needed for this pattern. The `<secondaryconsole>serial</secondaryconsole>` XML element is sufficient for OPNsense to configure the FreeBSD kernel console at boot.
+
+**No shell scripts touched** — XML-only change. `bash -n` gate N/A.
+

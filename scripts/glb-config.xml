@@ -240,8 +240,12 @@
     <dnsserver>8.8.8.8</dnsserver>
     <dnsserver>8.8.4.4</dnsserver>
     <sudo_allow_wheel>1</sudo_allow_wheel>
+    <!-- Azure serial console (az serial-console connect): serialspeed must match Azure's 115200 baud.
+         primaryconsole=video keeps VGA for local access; secondaryconsole=serial enables the ttyS0
+         output that Azure serial console captures. Reference: dmauser/opnazure scripts/config.xml -->
     <serialspeed>115200</serialspeed>
     <primaryconsole>video</primaryconsole>
+    <secondaryconsole>serial</secondaryconsole>
     <ssh>
       <enabled>enabled</enabled>
       <passwordauth>1</passwordauth>
