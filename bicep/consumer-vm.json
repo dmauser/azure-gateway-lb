@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "4390475034510115640"
+      "templateHash": "10608611478722491273"
     }
   },
   "parameters": {
@@ -15,10 +15,10 @@
         "description": "Admin username for the VM."
       }
     },
-    "sshPublicKey": {
-      "type": "string",
+    "adminPassword": {
+      "type": "securestring",
       "metadata": {
-        "description": "SSH public key for the admin user. Full OpenSSH public key string."
+        "description": "Admin password for the VM. Azure requires 12-72 chars with uppercase, lowercase, digit, and special character. Passed as @secure() — not stored in deployment history."
       }
     },
     "virtualMachineName": {
@@ -73,8 +73,8 @@
           "adminUsername": {
             "value": "[parameters('adminUsername')]"
           },
-          "sshPublicKey": {
-            "value": "[parameters('sshPublicKey')]"
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
           }
         },
         "template": {
@@ -84,7 +84,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "15503164264292115542"
+              "templateHash": "8008392266145109726"
             }
           },
           "parameters": {
@@ -114,10 +114,10 @@
                 "description": "Admin username for the VM."
               }
             },
-            "sshPublicKey": {
-              "type": "string",
+            "adminPassword": {
+              "type": "securestring",
               "metadata": {
-                "description": "SSH public key for the admin user."
+                "description": "Admin password for the VM. Azure requires 12-72 chars with uppercase, lowercase, digit, and special character. Passed as @secure() — not stored in deployment history."
               }
             },
             "nsgId": {
@@ -163,17 +163,7 @@
                 "osProfile": {
                   "computerName": "[parameters('virtualMachineName')]",
                   "adminUsername": "[parameters('adminUsername')]",
-                  "linuxConfiguration": {
-                    "disablePasswordAuthentication": true,
-                    "ssh": {
-                      "publicKeys": [
-                        {
-                          "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
-                          "keyData": "[parameters('sshPublicKey')]"
-                        }
-                      ]
-                    }
-                  },
+                  "adminPassword": "[parameters('adminPassword')]",
                   "customData": "[variables('cloudInitData')]"
                 },
                 "hardwareProfile": {

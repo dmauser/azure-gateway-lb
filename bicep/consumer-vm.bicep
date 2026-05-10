@@ -10,7 +10,7 @@
 //   az deployment group create \
 //     --resource-group <consumer-rg> \
 //     --template-file bicep/consumer-vm.bicep \
-//     --parameters adminUsername=<user> sshPublicKey="<ssh-pub-key-string>"
+//     --parameters adminUsername=<user> adminPassword="<password>"
 //
 // After deployment, step 6 (LB attachment) uses NIC name '<virtualMachineName>-nic'
 // which is deterministic and exposed as the 'nicName' output.
@@ -18,8 +18,9 @@
 @sys.description('Admin username for the VM.')
 param adminUsername string
 
-@sys.description('SSH public key for the admin user. Full OpenSSH public key string.')
-param sshPublicKey string
+@sys.description('Admin password for the VM. Azure requires 12-72 chars with uppercase, lowercase, digit, and special character. Passed as @secure() — not stored in deployment history.')
+@secure()
+param adminPassword string
 
 @sys.description('Consumer VM name.')
 param virtualMachineName string = 'consumer-vm'
@@ -46,7 +47,7 @@ module consumerVm 'modules/VM/consumer-vm.bicep' = {
     virtualMachineSize: virtualMachineSize
     subnetId: subnet.id
     adminUsername: adminUsername
-    sshPublicKey: sshPublicKey
+    adminPassword: adminPassword
     // nsgId omitted: NSG is applied at subnet level, not NIC level.
   }
 }

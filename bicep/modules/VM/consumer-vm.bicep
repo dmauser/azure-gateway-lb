@@ -10,8 +10,9 @@ param subnetId string
 @sys.description('Admin username for the VM.')
 param adminUsername string
 
-@sys.description('SSH public key for the admin user.')
-param sshPublicKey string
+@sys.description('Admin password for the VM. Azure requires 12-72 chars with uppercase, lowercase, digit, and special character. Passed as @secure() — not stored in deployment history.')
+@secure()
+param adminPassword string
 
 @sys.description('Optional NSG resource ID to attach to the NIC. Leave empty to rely on subnet-level NSG.')
 param nsgId string = ''
@@ -51,18 +52,7 @@ resource consumerVm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
     osProfile: {
       computerName: virtualMachineName
       adminUsername: adminUsername
-      // Password authentication disabled — SSH key only
-      linuxConfiguration: {
-        disablePasswordAuthentication: true
-        ssh: {
-          publicKeys: [
-            {
-              path: '/home/${adminUsername}/.ssh/authorized_keys'
-              keyData: sshPublicKey
-            }
-          ]
-        }
-      }
+      adminPassword: adminPassword
       // Cloud-init replaces the Custom Script Extension for nginx installation.
       // Injected at first boot — VM is fully provisioned before reporting healthy to the LB.
       customData: cloudInitData

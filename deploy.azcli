@@ -3,20 +3,23 @@
 # deploy.azcli — Azure Gateway Load Balancer Lab — Active-Active Topology
 # ==============================================================================
 #
-# REQUIRED ENVIRONMENT VARIABLES:
-#   SSH_PUBLIC_KEY      — SSH public key string or path "@/path/to/key.pub" (REQUIRED)
-#
 # OPTIONAL ENVIRONMENT VARIABLES (with defaults shown):
+#   ADMIN_PASSWORD      — Admin password for consumer VM (12-72 chars, complex).
+#                         If not set, you will be prompted interactively.
 #   LOCATION            — Azure region              (default: westus2)
 #   RG_CONSUMER         — Consumer resource group   (default: glb-consumer-rg)
 #   RG_PROVIDER         — Provider resource group   (default: glb-provider-rg)
 #   ADMIN_USERNAME      — VM admin username         (default: azureuser)
 #   BASTION_DEPLOY      — Deploy Bastion hosts      (default: false)
 #   SUBSCRIPTION_ID     — Switch to this subscription before deploying (optional)
+#   SSH_PUBLIC_KEY      — [Debug/optional] SSH public key for post-deploy SSH access
+#                         to the consumer VM; not required for deployment.
 #
-# USAGE:
-#   export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
+# USAGE (interactive — prompts for consumer VM password):
 #   bash deploy.azcli
+#
+# USAGE (non-interactive / CI — set ADMIN_PASSWORD to skip prompt):
+#   ADMIN_PASSWORD='MyP@ssw0rd!' bash deploy.azcli
 #
 # NOTE: Run 'az login' before executing this script.
 # ==============================================================================
@@ -42,16 +45,30 @@ az vm image terms accept \
     --plan 14_1-release-amd64-gen2-zfs \
     --output none
 
-if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
-  echo "ERROR: SSH_PUBLIC_KEY is required. Set it to your SSH public key string:" >&2
-  echo "  export SSH_PUBLIC_KEY=\"\$(cat ~/.ssh/id_rsa.pub)\"" >&2
-  exit 1
+# ==============================================================================
+# --- Consumer VM password resolution ---
+# Supports two modes:
+#   1. Non-interactive (CI): set ADMIN_PASSWORD before running — no prompt.
+#   2. Interactive (default): prompts with hidden input and confirmation.
+# The password is passed to Bicep as @secure() — never stored in deployment history.
+# Azure requires: 12-72 chars, uppercase + lowercase + digit + special character.
+# ==============================================================================
+if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+  while true; do
+    read -r -s -p "Enter admin password for consumer VM (12-72 chars, complex): " ADMIN_PASSWORD
+    echo
+    read -r -s -p "Confirm password: " ADMIN_PASSWORD_CONFIRM
+    echo
+    if [[ "$ADMIN_PASSWORD" == "$ADMIN_PASSWORD_CONFIRM" ]]; then
+      break
+    fi
+    echo "Passwords don't match. Try again."
+  done
+  export ADMIN_PASSWORD
 fi
-
-# If SSH_PUBLIC_KEY looks like a @file reference, verify the file exists
-if [[ "${SSH_PUBLIC_KEY}" == @* ]]; then
-  keyfile="${SSH_PUBLIC_KEY:1}"
-  [[ -f "$keyfile" ]] || { echo "ERROR: SSH key file not found: $keyfile" >&2; exit 1; }
+if [[ "${#ADMIN_PASSWORD}" -lt 12 ]]; then
+  echo "ERROR: ADMIN_PASSWORD must be at least 12 characters." >&2
+  exit 1
 fi
 
 # Resolve script directory so Bicep template path works from any working directory
@@ -210,13 +227,14 @@ az network lb inbound-nat-rule create \
 # 5) Deploy consumer VM via Bicep (cloud-init + Trusted Launch)
 # Creates NIC (consumer-vm-nic) and VM atomically. cloud-init installs nginx during first boot,
 # so the VM is fully provisioned before the LB health probe fires — no CSE needed.
+# adminPassword is @secure() in Bicep — not stored in deployment history.
 az deployment group create \
     --name "consumer-vm-deploy" \
     --resource-group "$consumer_rg" \
     --template-file "${SCRIPT_DIR}/bicep/consumer-vm.bicep" \
     --parameters \
         adminUsername="$ADMIN_USERNAME" \
-        sshPublicKey="$SSH_PUBLIC_KEY" \
+        adminPassword="$ADMIN_PASSWORD" \
     --output none
 
 # 6) Attach consumer VM to LB Rule and NAT Rule

@@ -15,23 +15,45 @@
 
 ## deploy.azcli Failure Modes
 
-### Missing `SSH_PUBLIC_KEY`
+### Password too short or missing
 
-**Symptom:** Script exits immediately with:
+**Symptom:** Script exits with:
 ```
-ERROR: SSH_PUBLIC_KEY is required.
+ERROR: ADMIN_PASSWORD must be at least 12 characters.
 ```
 
-**Fix:** Export the variable before running:
+**Fix:** Use a strong password that meets Azure complexity requirements (12-72 chars, uppercase, lowercase, digit, special character). Either set it as an env var before running or let the interactive prompt guide you:
+
 ```bash
-export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
+# Interactive (default — script prompts if ADMIN_PASSWORD is not set):
+bash deploy.azcli
+
+# Non-interactive / CI:
+ADMIN_PASSWORD='MyP@ssw0rd!' bash deploy.azcli
+```
+
+> **Note:** The password is passed to Bicep as `@secure()` — it is **not** stored in the ARM deployment history. However, it is present in your shell environment for the duration of the deployment. Use a strong unique password and avoid reusing personal credentials.
+
+> **Debug SSH access:** To SSH into the consumer VM after deployment, you can use `ssh-copy-id` or `az vm user update` to inject a public key post-deploy. Set `SSH_PUBLIC_KEY` if you want to document the key for reference, but it is not consumed by `deploy.azcli`.
+
+---
+
+### How do I avoid the password prompt for CI?
+
+Set `ADMIN_PASSWORD` in the environment before running `deploy.azcli`:
+
+```bash
+export ADMIN_PASSWORD='MyP@ssw0rd!'
 bash deploy.azcli
 ```
 
-If your key is at a non-default path:
+Or inline:
+
 ```bash
-export SSH_PUBLIC_KEY="$(cat ~/.ssh/my_azure_key.pub)"
+ADMIN_PASSWORD='MyP@ssw0rd!' bash deploy.azcli
 ```
+
+The script skips the interactive prompt when `ADMIN_PASSWORD` is already set.
 
 ---
 

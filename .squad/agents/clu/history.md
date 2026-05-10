@@ -12,7 +12,65 @@ History truncated for readability. Old entries archived. Key milestones:
 - **Status:** ✅ ALL GATES GREEN
 - **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
 - **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
-- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
+- **Next:** Deployment proof via bash deploy.azcli with ADMIN_PASSWORD prompt
+
+---
+## Session 6: Consumer VM Auth Switch — SSH-Key → Password (2026-05-10T15:57:11-05:00)
+
+### Auth-Contract Change Pattern (env-var-override with interactive fallback)
+
+**Directive:** Daniel Mauser requested password auth for the consumer VM (was SSH-key). Partial reversal of Phase 1 "no interactive prompts" rule — interactive prompt for human runs, env-var override for CI.
+
+**Files modified (5):**
+- `bicep/modules/VM/consumer-vm.bicep` — param `sshPublicKey` → `@secure() adminPassword`; removed `linuxConfiguration.ssh.publicKeys` block; added `adminPassword` to `osProfile`
+- `bicep/consumer-vm.bicep` — same param swap + module call update + usage comment
+- `bicep/consumer-vm.json` — regenerated from build
+- `bicep/glb-active-active.json` — regenerated (no Bicep change; clean rebuild)
+- `deploy.azcli` — removed SSH_PUBLIC_KEY required guard; added ADMIN_PASSWORD prompt+confirmation loop; updated step 5 `--parameters` to use `adminPassword`
+- `README.md` — System Requirements, env-vars table (ADMIN_PASSWORD added, SSH_PUBLIC_KEY demoted to debug/optional), Quick Start updated
+- `docs/troubleshooting.md` — "Missing SSH_PUBLIC_KEY" section → "Password too short or missing"; added "How do I avoid the password prompt for CI?" Q+A
+
+### `@secure()` Param Notes
+
+- Bicep `@secure()` on a `string` param: value is **not** stored in ARM deployment history / activity logs.
+- The value IS present in the user's shell environment (`$ADMIN_PASSWORD`) for the duration of `deploy.azcli`.
+- Security guidance: use a strong, unique password; do not reuse personal credentials.
+- The `adminPassword` property in `osProfile` is the ARM API mechanism — Azure enforces complexity (12-72 chars, mixed case, digit, special char) server-side.
+
+### deploy.azcli Interactive Prompt Pattern
+
+```bash
+if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+  while true; do
+    read -r -s -p "Enter admin password for consumer VM (12-72 chars, complex): " ADMIN_PASSWORD
+    echo
+    read -r -s -p "Confirm password: " ADMIN_PASSWORD_CONFIRM
+    echo
+    if [[ "$ADMIN_PASSWORD" == "$ADMIN_PASSWORD_CONFIRM" ]]; then
+      break
+    fi
+    echo "Passwords don't match. Try again."
+  done
+  export ADMIN_PASSWORD
+fi
+if [[ "${#ADMIN_PASSWORD}" -lt 12 ]]; then
+  echo "ERROR: ADMIN_PASSWORD must be at least 12 characters." >&2
+  exit 1
+fi
+```
+
+Key design points:
+- `set -euo pipefail` compatible (`-z "${ADMIN_PASSWORD:-}"` safely handles unset var with `-u`)
+- `read -r -s` for hidden input; `echo` after each read to move past the invisible line
+- `export ADMIN_PASSWORD` so sub-processes (az cli) can access it
+- Length check is a client-side guard only; Azure API enforces full complexity server-side
+- SSH_PUBLIC_KEY retained as optional/debug — downgraded from required, not removed
+
+### Validation Evidence
+- `az bicep build --file bicep/consumer-vm.bicep` → exit 0, 0 errors
+- `az bicep build --file bicep/glb-active-active.bicep` → exit 0, 0 errors
+- `bash -n deploy.azcli` → exit 0 (clean syntax)
+- `grep -i 'ssh.key\|SSH_PUBLIC_KEY\|sshPublicKey\|ssh-key-values' deploy.azcli | grep -v '^\s*#'` → exit 1 (no non-comment matches)
 # Clu — History
 
 ## Project Context

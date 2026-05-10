@@ -52,13 +52,13 @@ We assume you have some basic knowledge of what GLB is. If not, below are some r
 - Azure subscription with sufficient quota for: 4 VMs, 3 Public IPs, 2 Load Balancers
 - Azure CLI installed and logged in (`az login`)
 - Bicep CLI (the script auto-installs if missing)
-- SSH keypair (the deployment requires `SSH_PUBLIC_KEY` env var)
+- A strong, unique password for the consumer VM admin account (prompted interactively; see [env-vars table](#required-environment-variables))
 
 ### Required environment variables
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `SSH_PUBLIC_KEY` | **yes** | — | SSH public key string for VM access (e.g. `"$(cat ~/.ssh/id_rsa.pub)"`) |
+| `ADMIN_PASSWORD` | no | *(prompt)* | Admin password for the consumer VM. If not set, `deploy.azcli` prompts interactively with hidden input and confirmation. Azure requires 12-72 chars with uppercase, lowercase, digit, and special character. Set in advance for CI/scripted runs. |
 | `SUBSCRIPTION_ID` | no | current | Azure subscription ID to deploy to; switches context before deploy |
 | `LOCATION` | no | `westus2` | Azure region for all resources |
 | `RG_CONSUMER` | no | `glb-consumer-rg` | Consumer resource group name |
@@ -66,6 +66,7 @@ We assume you have some basic knowledge of what GLB is. If not, below are some r
 | `ADMIN_USERNAME` | no | `azureuser` | VM admin username (consumer and provider) |
 | `BASTION_DEPLOY` | no | `false` | Set `true` to deploy Azure Bastion in both resource groups |
 | `OPN_BOOTSTRAP_URI` | no | `https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/` | Base URI (with trailing slash) for `configureopnsense.sh` — cloud-init fetches from this URL at first boot. **Must point to a public ref containing your latest script changes.** |
+| `SSH_PUBLIC_KEY` | no | — | [Debug/optional] SSH public key for post-deploy access to the consumer VM via `ssh`. Not required for deployment. |
 
 > ⚠️ **Marketplace terms:** `thefreebsdfoundation/freebsd-14_4` requires `az vm image terms accept` on each subscription before first deploy. `deploy.azcli` handles this automatically, but some Enterprise Agreement (EA) and CSP subscriptions have policies that prevent third-party marketplace acceptance — contact your Azure administrator if terms acceptance fails.
 
@@ -74,8 +75,14 @@ We assume you have some basic knowledge of what GLB is. If not, below are some r
 ### Quick start
 
 ```bash
-export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
 bash deploy.azcli
+# You will be prompted: Enter admin password for consumer VM (12-72 chars, complex):
+```
+
+For non-interactive / CI runs, set `ADMIN_PASSWORD` before running:
+
+```bash
+ADMIN_PASSWORD='MyP@ssw0rd!' bash deploy.azcli
 ```
 
 > **Note:** If you have local changes to `scripts/configureopnsense.sh` that haven't been pushed yet, set `OPN_BOOTSTRAP_URI` to a pushed branch:
