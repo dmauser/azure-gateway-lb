@@ -24,11 +24,14 @@ param ExternalloadBalancerInboundNatRulesId string
 @sys.description('NVA role for OPNsense HA config. "Primary" or "Secondary". Passed as $2 to configureopnsense.sh.')
 param role string = ''
 
-@sys.description('Local VTEP IP with /24 CIDR mask (e.g. 10.0.0.37/24). Passed as $3 to configureopnsense.sh.')
+@sys.description('Local VTEP IP with CIDR mask matching the trusted subnet prefix (e.g. 10.0.0.37/27). Passed as $3 to configureopnsense.sh.')
 param localIP string = ''
 
 @sys.description('Peer NVA VTEP IP without CIDR (e.g. 10.0.0.38). Passed as $4 to configureopnsense.sh.')
 param peerIP string = ''
+
+@sys.description('GLB frontend private IP (first usable in the trusted subnet, e.g. 10.0.0.36). Passed as $5 to configureopnsense.sh.')
+param glbIP string = ''
 
 @sys.description('Base URI for OPNsense bootstrap scripts (trailing slash). Used as CSE fileUris base and $1 to configureopnsense.sh.')
 param bootstrapUri string = ''
@@ -143,7 +146,7 @@ resource vmext 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = if (!
       fileUris: [
         '${bootstrapUri}configureopnsense.sh'
       ]
-      commandToExecute: 'sh configureopnsense.sh ${bootstrapUri} ${role} ${localIP} ${peerIP}'
+      commandToExecute: 'sh configureopnsense.sh ${bootstrapUri} ${role} ${localIP} ${peerIP} ${glbIP}'
     }
   }
 }

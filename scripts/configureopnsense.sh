@@ -24,31 +24,36 @@
 #
 #   $4  Peer IP       Type: IPv4 address (no prefix)
 #                     Example: 10.0.1.6
-#                     Used: rrr.rrr.rrr.rrr in XML (VXLAN remote addr, both roles);
-#                           xxx.xxx.xxx.xxx in XML (HA-sync synchronizetoip, Primary only)
+#                     Used: xxx.xxx.xxx.xxx in XML (HA-sync synchronizetoip, Primary only)
+#
+#   $5  GLB frontend IP  Type: IPv4 address (no prefix)
+#                     Example: 10.0.1.4
+#                     Used: rrr.rrr.rrr.rrr in XML (VXLAN remote addr for both vxlan0 and vxlan1);
+#                           vxlanremote in 25-azure syshook; equals trusted subnet base+4 (first
+#                           usable IP, which Azure assigns to the GLB frontend)
 #
 # XML placeholder mapping:
 #   yyy.yyy.yyy.yyy  -> LAN gateway (derived from $3 via get_nic_gw.py)
 #   xxx.xxx.xxx.xxx  -> peer NVA IP / HA-sync target ($4, Primary only)
 #   lll.lll.lll.lll  -> local NVA IP (IP portion of $3, CIDR stripped)
-#   rrr.rrr.rrr.rrr  -> peer NVA IP ($4)
+#   rrr.rrr.rrr.rrr  -> GLB frontend IP ($5) — VXLAN remote; NVAs must send VXLAN back to GLB, not to each other
 #
 # Example invocations:
 #   Primary NVA:
 #     sh configureopnsense.sh \
 #       https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/ \
-#       Primary 10.0.1.5/24 10.0.1.6
+#       Primary 10.0.1.5/27 10.0.1.6 10.0.1.4
 #
 #   Secondary NVA:
 #     sh configureopnsense.sh \
 #       https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/ \
-#       Secondary 10.0.1.6/24 10.0.1.5
+#       Secondary 10.0.1.6/27 10.0.1.5 10.0.1.4
 #
 # Invocation context:
 #   This script is executed via Azure Custom Script Extension, configured in
 #   bicep/modules/VM/vmext.bicep. The module parameters map as follows:
 #     OPNScriptURI          -> $1 (URI prefix; also used as fileUris base)
-#     ShellScriptParameters -> "$2 $3 $4" (Role, LocalCIDR, PeerIP assembled in Bicep)
+#     ShellScriptParameters -> "$2 $3 $4 $5" (Role, LocalCIDR, PeerIP, GLBfrontendIP assembled in Bicep)
 #   The extension runs: sh configureopnsense.sh <OPNScriptURI> <ShellScriptParameters>
 #
 # VXLAN port persistence (Phase 2):
@@ -70,7 +75,7 @@ if [ "$2" = "Primary" ]; then
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config-active-active-primary.xml
     sed -i "" "s/xxx.xxx.xxx.xxx/$4/" glb-config-active-active-primary.xml
     sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config-active-active-primary.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$4/" glb-config-active-active-primary.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" glb-config-active-active-primary.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Primary<\/hostname>/" glb-config-active-active-primary.xml
     cp glb-config-active-active-primary.xml /usr/local/etc/config.xml
 elif [ "$2" = "Secondary" ]; then
@@ -79,7 +84,7 @@ elif [ "$2" = "Secondary" ]; then
     gwip=$(python3 get_nic_gw.py $3)
     sed -i "" "s/yyy.yyy.yyy.yyy/$gwip/" glb-config.xml
     sed -i "" "s/lll.lll.lll.lll/$localip/" glb-config.xml
-    sed -i "" "s/rrr.rrr.rrr.rrr/$4/" glb-config.xml
+    sed -i "" "s/rrr.rrr.rrr.rrr/$5/" glb-config.xml
     sed -i "" "s/<hostname>OPNsense<\/hostname>/<hostname>OPNsense-Secondary<\/hostname>/" glb-config.xml
     cp glb-config.xml /usr/local/etc/config.xml
 fi
@@ -134,18 +139,23 @@ route delete 168.63.129.16
 EOL
 chmod +x /usr/local/etc/rc.syshook.d/start/22-remoteroute
 
-#VXLAN config — identical for Primary and Secondary; IPs derived from $3/$4
+#VXLAN config — identical for Primary and Secondary; IPs derived from $3/$5
 echo ifconfig hn0 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig hn1 mtu 4000 >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig vxlan0 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-echo ifconfig vxlan0 vxlanlocal $localip vxlanremote $4 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan0 vxlanlocal $localip vxlanremote $5 vxlanlocalport 10800 vxlanremoteport 10800 >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig vxlan0 up >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig vxlan1 down >> /usr/local/etc/rc.syshook.d/start/25-azure
-echo ifconfig vxlan1 vxlanlocal $localip vxlanremote $4 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
+echo ifconfig vxlan1 vxlanlocal $localip vxlanremote $5 vxlanlocalport 10801 vxlanremoteport 10801 >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig vxlan1 up >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig bridge0 addm vxlan0 >> /usr/local/etc/rc.syshook.d/start/25-azure
 echo ifconfig bridge0 addm vxlan1 >> /usr/local/etc/rc.syshook.d/start/25-azure
+# Disable pf filtering on bridge member interfaces; without this, bridged VXLAN frames are dropped
+echo sysctl net.link.bridge.pfil_member=0 >> /usr/local/etc/rc.syshook.d/start/25-azure
 chmod +x /usr/local/etc/rc.syshook.d/start/25-azure
+
+# Persist pfil_member=0 across reboots via sysctl.conf (applied before configd at boot)
+echo "net.link.bridge.pfil_member=0" >> /etc/sysctl.conf
 
 #Adds support to LB probe from IP 168.63.129.16
 # Add Azure VIP on Arp table

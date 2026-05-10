@@ -126,11 +126,14 @@ resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' ex
 // Example: trusted prefix 10.0.0.32/27 → GLB=10.0.0.36, primary=10.0.0.37, secondary=10.0.0.38.
 // Confirmed 2026-05-09 via az network nic show during round-6 live deploy (Quorra Finding 5).
 var trustedNetAddr = split(trustedSubnet.properties.addressPrefix, '/')[0]
+var trustedPrefix = split(trustedSubnet.properties.addressPrefix, '/')[1]
 var trustedOctets = split(trustedNetAddr, '.')
 var ipBase3 = '${trustedOctets[0]}.${trustedOctets[1]}.${trustedOctets[2]}'
-var primaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/24'
+// GLB frontend is the first usable IP in the subnet (base+4; Azure reserves base+0 through base+3).
+var glbFrontendIP = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}'
+var primaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/${trustedPrefix}'
 var primaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 6)}'
-var secondaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 6)}/24'
+var secondaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 6)}/${trustedPrefix}'
 var secondaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}'
 
 // External Load Balancer
@@ -306,6 +309,7 @@ module opnSenseSecondary 'modules/VM/opnsense-vm-active-active.bicep' = {
     role: 'Secondary'
     localIP: secondaryLocalIP
     peerIP: secondaryPeerIP
+    glbIP: glbFrontendIP
     bootstrapUri: bootstrapUri
   }
 }
@@ -327,6 +331,7 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     role: 'Primary'
     localIP: primaryLocalIP
     peerIP: primaryPeerIP
+    glbIP: glbFrontendIP
     bootstrapUri: bootstrapUri
   }
 }

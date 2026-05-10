@@ -372,3 +372,71 @@
   - ALL remote execution mechanisms via Azure extensions fail on FreeBSD 14.4
 - **VTEP IP mismatch pattern:** When GLB is deployed in the trusted subnet, it consumes at least one IP. Bicep static IP offsets must account for GLB's internal frontend reservation. Use dynamic IP discovery in the bootstrap script or adjust Bicep offsets.
 - **GLB poll is necessary but not sufficient.** Readability of GLB resource via `az network lb frontend-ip show` does not guarantee cross-region ARM reference resolution for `frontend-ip update --gateway-lb`. The chain update itself needs retry-with-backoff.
+
+---
+
+### Live Deploy Round 7 — 2026-05-10T22:00:00Z (✅ PASS — first end-to-end success)
+
+**Context:** FreeBSD 14.1 + `OSTCExtensions.CustomScriptForLinux` v1.5 pivot (bypasses Linux ELF and cloud-init requirements). Both RGs clean. OPNsense 25.1.12 delivered via CSE. This is the first round where OPNsense successfully bootstrapped on both NVAs.
+
+**Consumer side (verified green):**
+- Consumer ELB PIP: 172.182.235.76
+- 3a ✅ Consumer VM: `PowerState/running`
+- 3b ✅ Cloud-init: `status: done`; nginx active
+- 3c ✅ nginx direct: `curl http://172.182.235.76` → `Test Website on consumer-vm`
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, `secureBootEnabled: true`, `vTpmEnabled: true`
+
+**Provider side (deployed, NVAs running, OPNsense 25.1.12 confirmed):**
+- Both NVAs: `PowerState/running`; OPNsense 25.1.12 confirmed on both ✅
+- 3e ✅ securityProfile: null on both NVAs
+- 3f ✅ GLB chain established: `gatewayLoadBalancer.id` confirmed
+
+**Five P1 bugs found and fixed during live debugging:**
+
+1. **Root Cause #1 — `/24` hardcoded CIDR in Bicep:**  
+   `var primaryLocalIP = '.../24'` → `get_nic_gw.py` computed gateway as 10.0.0.1 (wrong for /27).  
+   Actual gateway = 10.0.0.33. pfctl `reply-to` routed health probes on wrong interface.  
+   Fix: `var trustedPrefix = split(trustedSubnet.properties.addressPrefix, '/')[1]`, used in both IP vars.
+
+2. **Root Cause #2 — syshook ordering (INVALIDATED on inspection):**  
+   Previously believed syshooks were written before bootstrap. Actual code shows syshooks (lines 131-148) come AFTER `sh ./opnsense-bootstrap.sh.in` (line 110). Ordering is correct. No fix needed.
+
+3. **Root Cause #3 — vxlanremote = peer NVA IP, must be GLB frontend IP:**  
+   `rrr.rrr.rrr.rrr` placeholder substituted with `$4` (peer NVA IP, e.g., 10.0.0.38).  
+   Azure GLB expects VXLAN returned to its frontend IP 10.0.0.36. NVAs were sending VXLAN to each other.  
+   Fix: Added `$5` = GLB frontend IP = `trustedSubnetBase + 4`. All `rrr.rrr.rrr.rrr` substitutions use `$5`.  
+   Also added `var glbFrontendIP` to Bicep and `param glbIP` to VM module.
+
+4. **Root Cause #4 — pfil_member=1 blocks bridge member pf filtering:**  
+   FreeBSD default `net.link.bridge.pfil_member=1` enables pf on bridge member interfaces (vxlan0/vxlan1).  
+   No pf pass rules for VXLAN → default deny drops all bridged VXLAN frames.  
+   Fix: Added `sysctl net.link.bridge.pfil_member=0` to 25-azure syshook and `/etc/sysctl.conf`.
+
+5. **Root Cause #5 — OPNsense configd resets vxlan remote continuously:**  
+   configd reads config.xml and re-applies vxlan config (with wrong remote) whenever bridge membership changes.  
+   Even `sed -i.bak` on config.xml was overwritten by configd from in-memory state.  
+   Fix: Proper config.xml substitution (Root Cause #3 fix) gives configd the correct GLB IP to manage.  
+   Manual workaround during session: `service configd stop` on both NVAs.
+
+**Gate results (all green):**
+- 3c (via GLB chain) ✅ `curl http://172.182.235.76` → `Test Website on consumer-vm` (exit 0, 5× confirmed)
+- 3g ✅ VXLAN bidirectional tcpdump: `10.0.0.36→10.0.0.37:10801`, `10.0.0.37→10.0.0.36:10800`, both directions captured
+- 3h ✅ OPNsense 25.1.12 on both NVAs confirmed
+
+**Source code fixes applied and committed:**
+- `bicep/glb-active-active.bicep`: `trustedPrefix` var, `glbFrontendIP` var, fixed `/24` → `/${trustedPrefix}`, added `glbIP` to module calls
+- `bicep/modules/VM/opnsense-vm-active-active.bicep`: `param glbIP`, updated `commandToExecute` to pass `$5`
+- `scripts/configureopnsense.sh`: `$5` = GLB IP in docs + sed substitutions + syshook; `pfil_member=0` to syshook + sysctl.conf
+- `az bicep build`: exit 0, 0 errors ✅
+
+**Verdict file:** `.squad/decisions/inbox/quorra-live-deploy-verdict-round7.md`
+
+**Learnings:**
+- **Azure GLB VXLAN remote must be GLB frontend IP, not peer NVA IP.** Both NVAs in an active-active pair must send VXLAN return traffic to the GLB frontend (10.0.0.36), not to each other. GLB is the VXLAN terminus.
+- **FreeBSD `net.link.bridge.pfil_member=1` default breaks VXLAN bridges.** OPNsense bridge config does not disable pf on bridge member interfaces. Any deployment that bridges VXLAN interfaces must set `pfil_member=0` or add explicit pf pass rules for the VXLAN interfaces.
+- **OPNsense configd owns all interface state — config.xml must be correct.** Do not fight configd with `ifconfig`. Instead, give configd correct config.xml values (via proper template substitution). configd will then manage the interfaces correctly after reboot.
+- **GLB frontend IP = trusted subnet base + 4.** Azure reserves the first 4 IPs in any subnet. When GLB is the first resource deployed in the trusted subnet, it gets the first usable IP (base+4). NVAs land at base+5 and base+6.
+- **CSE v1.5 (`OSTCExtensions.CustomScriptForLinux`) works on FreeBSD 14.1.** This is the correct extension for FreeBSD; FreeBSD 14.4 was incompatible due to unrelated reasons (Linux ELF issue in run-command). FreeBSD 14.1 + CSE v1.5 is the working combination.
+- **SSH NAT rules (port 22) are essential for live debugging.** Future Bicep should include debug NAT rules (port 50022/50023 → port 22) or a Bastion host to enable direct root SSH to NVAs for post-deploy validation.
+- **`pfctl reply-to` must use the correct LAN gateway.** If the CIDR prefix is wrong, the gateway IP computation is wrong, and pfctl routes health probe replies to the wrong interface, causing health check failures even when OPNsense is fully up.
+
