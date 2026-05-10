@@ -58,8 +58,7 @@
 #   the correct ports survive OPNsense config reloads. The rc.syshook startup hook
 #   (25-azure) also enforces them at boot as a secondary safeguard.
 
-set -euo pipefail
-trap 'echo "Error on line $LINENO (exit $?)" >&2' ERR
+set -eu
 
 # Derive bare local IP (strip CIDR prefix) for XML and VXLAN substitutions
 localip=$(echo $3 | cut -d'/' -f1)

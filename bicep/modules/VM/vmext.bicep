@@ -10,7 +10,7 @@ resource vmext 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = {
   properties: {
     publisher: 'Microsoft.OSTCExtensions'
     type: 'CustomScriptForLinux'
-    typeHandlerVersion: '1.4'
+    typeHandlerVersion: '1.5'
     autoUpgradeMinorVersion: false
     settings:{
       fileUris: [

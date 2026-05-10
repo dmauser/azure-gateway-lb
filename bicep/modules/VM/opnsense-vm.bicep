@@ -48,8 +48,8 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
   name: virtualMachineName
   location: resourceGroup().location
   plan: {
-    name: '14_4-release-amd64-gen2-ufs'
-    product: 'freebsd-14_4'
+    name: '14_1-release-amd64-gen2-zfs'
+    product: 'freebsd-14_1'
     publisher: 'thefreebsdfoundation'
   }
   properties: {
@@ -78,8 +78,8 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
       }
       imageReference: {
         publisher: 'thefreebsdfoundation'
-        offer: 'freebsd-14_4'
-        sku: '14_4-release-amd64-gen2-ufs'
+        offer: 'freebsd-14_1'
+        sku: '14_1-release-amd64-gen2-zfs'
         version: 'latest'
       }
     }
@@ -99,11 +99,8 @@ resource OPNsense 'Microsoft.Compute/virtualMachines@2024-03-01' = {
         }
       ]
     }
-    // securityProfile intentionally omitted: FreeBSD 14.4 (thefreebsdfoundation/freebsd-14_4)
-    // does NOT support securityType 'TrustedLaunch' — Azure rejects with
-    // "Use of TrustedLaunch setting is not supported for the provided image."
-    // Empirically confirmed 2026-05-09 on westus3 (Quorra live deploy).
-    // OPNsense NVAs deploy as Standard Gen2 VMs with no securityProfile block.
+    // securityProfile intentionally omitted: FreeBSD 14.1 (thefreebsdfoundation/freebsd-14_1)
+    // does NOT support securityType 'TrustedLaunch'. OPNsense NVAs deploy as Standard Gen2 VMs.
   }
 }
 

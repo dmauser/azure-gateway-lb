@@ -121,15 +121,17 @@ resource trustedSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' ex
 }
 
 // Derive VTEP IPs for OPNsense VXLAN tunnel interfaces from the trusted subnet address prefix.
-// Convention: primary VTEP = base+4, secondary VTEP = base+5, both with /24 mask.
-// Example: trusted prefix 10.0.0.32/27 → primary 10.0.0.36/24, secondary 10.0.0.37/24.
+// Azure reserves subnet_base+1 (gateway), +2, +3, +4 (platform). GLB frontend gets +4 (first DHCP).
+// NVAs therefore land at +5 (primary) and +6 (secondary).
+// Example: trusted prefix 10.0.0.32/27 → GLB=10.0.0.36, primary=10.0.0.37, secondary=10.0.0.38.
+// Confirmed 2026-05-09 via az network nic show during round-6 live deploy (Quorra Finding 5).
 var trustedNetAddr = split(trustedSubnet.properties.addressPrefix, '/')[0]
 var trustedOctets = split(trustedNetAddr, '.')
 var ipBase3 = '${trustedOctets[0]}.${trustedOctets[1]}.${trustedOctets[2]}'
-var primaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}/24'
-var primaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}'
-var secondaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/24'
-var secondaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 4)}'
+var primaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}/24'
+var primaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 6)}'
+var secondaryLocalIP = '${ipBase3}.${string(int(trustedOctets[3]) + 6)}/24'
+var secondaryPeerIP = '${ipBase3}.${string(int(trustedOctets[3]) + 5)}'
 
 // External Load Balancer
 module elb 'modules/vnet/lb.bicep' = {
@@ -328,10 +330,6 @@ module opnSensePrimary 'modules/VM/opnsense-vm-active-active.bicep' = {
     bootstrapUri: bootstrapUri
   }
 }
-
-// OPNsense bootstrap via cloud-init customData (Path D-proper).
-// bsdcloudinit on FreeBSD 14.4 executes runcmd directives at first boot.
-// No extension framework required — no Python 2 / Linux ELF dependency.
 
 // Windows11 Client Resources
 module nsgwinvm 'modules/vnet/nsg.bicep' = if (DeployWindows) {
