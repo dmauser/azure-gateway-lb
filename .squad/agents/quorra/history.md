@@ -298,3 +298,77 @@
 - **GLB chain timing:** Deploy script's GLB chain step (immediately after provider Bicep) hits ARM propagation delay → `InvalidGlobalResourceReference`. Retry after 60–90s succeeds. Add `sleep 60` to deploy.azcli.
 - **OPNsense GUI = bootstrap done indicator:** If OPNsense web GUI (port 443) responds, bootstrap ran to completion. If absent after 60 minutes, bootstrap failed (regardless of sentinel file).
 - **No SSH NAT rule = no remote verification:** Current Bicep only exposes port 443 (50443/50444) for OPNsense management. Without Bastion or a port 22 NAT rule, post-deploy SSH verification is impossible. This blocks 3h gate permanently unless NAT rule is added.
+
+---
+
+### Live Deploy Round 6 — 2026-05-10T01:30:00Z (BLOCKED — cloud-init not installed on FreeBSD 14.4)
+
+**Context:** Post-push deploy. origin/main = 519bf26 (Flynn's Round 6 fixes). Flynn's three fixes: Fix 1 (python→python3 in configureopnsense.sh), Fix 2 (shebang #!/bin/sh → #!/usr/local/bin/bash in configureopnsense.sh), Fix 3 (GLB poll loop in deploy.azcli). Both RGs clean. Pre-flight confirmed.
+
+**Consumer side (verified green):**
+- Consumer ELB PIP: 20.25.140.6
+- 3a ✅ Consumer VM: `PowerState/running`
+- 3b ✅ Cloud-init: `status: done`; nginx active
+- 3d ✅ Consumer TL: `securityType: TrustedLaunch`, `secureBootEnabled: true`, `vTpmEnabled: true`
+
+**Provider side (deployed, NVAs running):**
+- Both NVAs: `PowerState/running`
+- 3e ✅ securityProfile: null on both NVAs
+- 3f ✅ GLB chain manually established (Flynn's poll succeeded but chain update needed extra ~3 min)
+- 3c ❌ curl http://20.25.140.6 via GLB chain: TIMEOUT — OPNsense VXLAN not running
+
+**CRITICAL BLOCKER — Finding 1 — cloud-init not installed on FreeBSD 14.4:**
+- Flynn's Round 6 approach: encode `opnsense-bootstrap.yaml` as cloud-init YAML in `customData`
+- `customData` IS correctly set by Bicep (confirmed: `resolvedCustomData` non-empty, Azure redacts from GET)
+- Inside the primary NVA (SSH via manually added NAT rule port 50022): `cloud-init: not found`, no `/var/log/cloud-init*`, `pkg info | grep cloud` empty
+- The FreeBSD 14.4 marketplace image (`thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs`) does NOT have cloud-init or bsdcloudinit installed
+- waagent IS installed and running (Python 3.11.14) but does NOT process cloud-init YAML from customData
+- VM was completely idle from minute 5 onward (CPU 0.1%, network 0.22 MB/5min) — confirmed via Azure Monitor metrics
+- Bootstrap YAML was silently discarded — OPNsense was never installed
+- 3g ❌ VXLAN: FAIL (OPNsense absent)
+- 3h ❌ Bootstrap: FAIL (cloud-init not installed; no bootstrap ever ran)
+
+**Finding 2 — configureopnsense.sh shebang still incorrect (Finding carries forward):**
+- `#!/bin/sh` still present on line 1 despite Flynn's Fix 2 claim
+- FreeBSD `/bin/sh` does NOT support `trap '...' ERR` (bash extension) — prints `trap: bad signal ERR`
+- Script must use `#!/usr/local/bin/bash`
+- NOTE: This may be moot until Finding 1 is resolved (bootstrap never runs anyway)
+
+**Finding 3 — Flynn's python3 fix IS correct:**
+- Inside primary NVA: `python3 --version` → Python 3.11.14 ✅; `python` → not found ✅
+- Flynn's lines 70/80 change (python→python3) is correct
+- End-to-end verification BLOCKED by Finding 1
+
+**Finding 4 — GLB poll necessary but not sufficient:**
+- Flynn's poll loop (deploy-round6.log lines 129-136): poll succeeds ("GLB frontend IP queryable")
+- Immediately after poll: `InvalidGlobalResourceReference` — chain update STILL fails
+- Fix needed: retry-with-backoff on the chain update itself, not just a pre-check poll
+
+**Finding 5 — VTEP IP mismatch:**
+- Bicep computes primary VTEP as `trustedSubnetBase + 4` = 10.0.0.36
+- Actual Azure DHCP: primary trusted NIC = 10.0.0.37, secondary = 10.0.0.38 (off by 1)
+- Likely cause: GLB consumes 10.0.0.36 as its internal frontend IP
+- If bootstrap ever ran, VXLAN would bind to wrong local address → forwarding failure
+
+**SSH access workaround (manual, not in Bicep):**
+- Generated passphrase-free WSL key: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_diag -N ""`
+- Injected via VMAccess: `az vm user update --username azureuser --ssh-key-value ...` ✅
+- Added NAT rule: provider-nva-elb port 50022 → primary NVA port 22 ✅
+- SSH worked as azureuser; but NO privilege escalation available (no sudo, no doas, azureuser not in wheel)
+- All Azure extension mechanisms failed on FreeBSD 14.4: CustomScriptForLinux shim needs `/bin/bash`, CustomScript (v2.1) is Linux ELF, RunCommandLinux is Linux ELF, VMAccess root key injection hung
+
+**Cleanup:** Both RGs deleted (no-wait).
+**Verdict file:** `.squad/decisions/inbox/quorra-live-deploy-verdict-round6.md`
+
+**Learnings:**
+- **cloud-init is NOT installed on FreeBSD 14.4 Azure marketplace image.** `customData` cloud-init YAML delivery requires cloud-init or bsdcloudinit to be present in the guest. waagent alone does not process cloud-init YAML. The entire Round 6 delivery mechanism is inoperable on this image.
+- **No privilege escalation available as azureuser on FreeBSD 14.4.** sudo not installed, doas not installed, azureuser not in wheel group. Root SSH injection via VMAccess hangs. This makes post-deploy manual recovery extremely difficult. Future rounds should deploy with Bastion or add a debug SSH NAT rule in Bicep.
+- **FreeBSD 14.4 extension compatibility matrix (authoritative):**
+  - `OSTCExtensions.CustomScriptForLinux` v1.4: ❌ shim.sh requires `env bash` → bash not in PATH
+  - `Azure.Extensions.CustomScript` v2.1: ❌ Linux ELF binary → Exec format error
+  - `CPlat.Core.RunCommandLinux`: ❌ Linux ELF binary → Exec format error
+  - `OSTCExtensions.VMAccessForLinux` (password reset): ❌ Python API incompatibility
+  - `OSTCExtensions.VMAccessForLinux` (SSH key injection for existing user): ✅ Works
+  - ALL remote execution mechanisms via Azure extensions fail on FreeBSD 14.4
+- **VTEP IP mismatch pattern:** When GLB is deployed in the trusted subnet, it consumes at least one IP. Bicep static IP offsets must account for GLB's internal frontend reservation. Use dynamic IP discovery in the bootstrap script or adjust Bicep offsets.
+- **GLB poll is necessary but not sufficient.** Readability of GLB resource via `az network lb frontend-ip show` does not guarantee cross-region ARM reference resolution for `frontend-ip update --gateway-lb`. The chain update itself needs retry-with-backoff.
