@@ -4,7 +4,7 @@ param enableIPForwarding bool = false
 param nicName string
 param nsgId string
 
-resource nic 'Microsoft.Network/networkInterfaces@2021-02-01' = {
+resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   name: nicName
   location: resourceGroup().location
   properties: {

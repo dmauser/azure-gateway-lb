@@ -6,7 +6,7 @@ param loadBalancingRules array
 param outboundRules array
 param probe array
 
-resource elb 'Microsoft.Network/loadBalancers@2021-03-01' = {
+resource elb 'Microsoft.Network/loadBalancers@2023-09-01' = {
   name: lbName
   sku: {
     name: 'Standard'

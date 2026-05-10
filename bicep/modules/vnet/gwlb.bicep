@@ -5,7 +5,7 @@ param loadBalancingRules array
 param outboundRules array = []
 param probe array
 
-resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
+resource lb 'Microsoft.Network/loadBalancers@2023-09-01' = {
   name: lbName
   location: resourceGroup().location
   sku: {

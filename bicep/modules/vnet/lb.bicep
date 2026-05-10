@@ -7,7 +7,7 @@ param outboundRules array = []
 param probe array
 param skuname string = 'Standard'
 
-resource lb 'Microsoft.Network/loadBalancers@2021-03-01' = {
+resource lb 'Microsoft.Network/loadBalancers@2023-09-01' = {
   name: lbName
   location: resourceGroup().location
   sku: {

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "4423642923935205342"
+      "templateHash": "16836282142550293121"
     }
   },
   "parameters": {
@@ -650,10 +650,13 @@
             "value": "Secondary"
           },
           "localIP": {
-            "value": "[format('{0}.{1}/24', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 6)))]"
+            "value": "[format('{0}.{1}/{2}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 6)), split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[1])]"
           },
           "peerIP": {
             "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 5)))]"
+          },
+          "glbIP": {
+            "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 4)))]"
           },
           "bootstrapUri": {
             "value": "[parameters('bootstrapUri')]"
@@ -666,7 +669,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "545585082584527969"
+              "templateHash": "5815598105926716609"
             }
           },
           "parameters": {
@@ -719,7 +722,7 @@
               "type": "string",
               "defaultValue": "",
               "metadata": {
-                "description": "Local VTEP IP with /24 CIDR mask (e.g. 10.0.0.37/24). Passed as $3 to configureopnsense.sh."
+                "description": "Local VTEP IP with CIDR mask matching the trusted subnet prefix (e.g. 10.0.0.37/27). Passed as $3 to configureopnsense.sh."
               }
             },
             "peerIP": {
@@ -727,6 +730,13 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Peer NVA VTEP IP without CIDR (e.g. 10.0.0.38). Passed as $4 to configureopnsense.sh."
+              }
+            },
+            "glbIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "GLB frontend private IP (first usable in the trusted subnet, e.g. 10.0.0.36). Passed as $5 to configureopnsense.sh."
               }
             },
             "bootstrapUri": {
@@ -810,7 +820,7 @@
                   "fileUris": [
                     "[format('{0}configureopnsense.sh', parameters('bootstrapUri'))]"
                   ],
-                  "commandToExecute": "[format('sh configureopnsense.sh {0} {1} {2} {3}', parameters('bootstrapUri'), parameters('role'), parameters('localIP'), parameters('peerIP'))]"
+                  "commandToExecute": "[format('sh configureopnsense.sh {0} {1} {2} {3} {4}', parameters('bootstrapUri'), parameters('role'), parameters('localIP'), parameters('peerIP'), parameters('glbIP'))]"
                 }
               },
               "dependsOn": [
@@ -1096,10 +1106,13 @@
             "value": "Primary"
           },
           "localIP": {
-            "value": "[format('{0}.{1}/24', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 5)))]"
+            "value": "[format('{0}.{1}/{2}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 5)), split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[1])]"
           },
           "peerIP": {
             "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 6)))]"
+          },
+          "glbIP": {
+            "value": "[format('{0}.{1}', format('{0}.{1}.{2}', split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[0], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[1], split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[2]), string(add(int(split(split(reference(resourceId('Microsoft.Network/virtualNetworks/subnets', split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[0], split(format('{0}/{1}', parameters('existingVirtualNetworkName'), parameters('existingTrustedSubnet')), '/')[1]), '2023-09-01').addressPrefix, '/')[0], '.')[3]), 4)))]"
           },
           "bootstrapUri": {
             "value": "[parameters('bootstrapUri')]"
@@ -1112,7 +1125,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "545585082584527969"
+              "templateHash": "5815598105926716609"
             }
           },
           "parameters": {
@@ -1165,7 +1178,7 @@
               "type": "string",
               "defaultValue": "",
               "metadata": {
-                "description": "Local VTEP IP with /24 CIDR mask (e.g. 10.0.0.37/24). Passed as $3 to configureopnsense.sh."
+                "description": "Local VTEP IP with CIDR mask matching the trusted subnet prefix (e.g. 10.0.0.37/27). Passed as $3 to configureopnsense.sh."
               }
             },
             "peerIP": {
@@ -1173,6 +1186,13 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Peer NVA VTEP IP without CIDR (e.g. 10.0.0.38). Passed as $4 to configureopnsense.sh."
+              }
+            },
+            "glbIP": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "GLB frontend private IP (first usable in the trusted subnet, e.g. 10.0.0.36). Passed as $5 to configureopnsense.sh."
               }
             },
             "bootstrapUri": {
@@ -1256,7 +1276,7 @@
                   "fileUris": [
                     "[format('{0}configureopnsense.sh', parameters('bootstrapUri'))]"
                   ],
-                  "commandToExecute": "[format('sh configureopnsense.sh {0} {1} {2} {3}', parameters('bootstrapUri'), parameters('role'), parameters('localIP'), parameters('peerIP'))]"
+                  "commandToExecute": "[format('sh configureopnsense.sh {0} {1} {2} {3} {4}', parameters('bootstrapUri'), parameters('role'), parameters('localIP'), parameters('peerIP'), parameters('glbIP'))]"
                 }
               },
               "dependsOn": [

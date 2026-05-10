@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+import sys, os, subprocess
+
+WIN_AZ = '/mnt/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az'
+
+def wslpath_convert(p):
+    try:
+        result = subprocess.run(
+            ['wslpath', '-w', p],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if result.returncode == 0:
+            return result.stdout.decode('utf-8').strip()
+    except Exception:
+        pass
+    return p
+
+def convert_arg(arg):
+    if arg.startswith('/mnt/'):
+        return wslpath_convert(arg)
+    return arg
+
+args = [convert_arg(a) for a in sys.argv[1:]]
+result = subprocess.run([WIN_AZ] + args, env=os.environ)
+sys.exit(result.returncode)

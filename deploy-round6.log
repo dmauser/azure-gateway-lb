@@ -1,0 +1,136 @@
+Active subscription set to: 36ead89c-e817-4abc-ae66-5d29d23995bb
+Name                                                   IsDefault
+-----------------------------------------------------  -----------
+MSDN_Sub2                                              False
+MSDN_Dmauser                                           True
+VSE-Sub                                                False
+Pay-As-You-Go                                          False
+VSE-Sub2                                               False
+VSE-Sub3                                               False
+ME-MngEnvMCAP423074-dmauser-1                          False
+MSFT-Provisioning-01[Prod]                             False
+SFDA-TelemetryInsights-PROD                            False
+Service 360 Test                                       False
+COIE-EHS-CORP-DEV                                      False
+AI Impact Analyzer                                     False
+COSMIC AKS PlayGround                                  False
+FastTrack Secure Infrastructure Public - Prod          False
+AIOps_FailureSimulation_DevTest                        False
+MSFT-WindowsVirtualDesktop-01                          False
+AVNM-MSFT-02                                           False
+Core-FUN-AppCompat-Gates                               False
+PhyNet-Niket-Dev-Env                                   False
+Device Health Modeling                                 False
+HLS.PLATFORM.PE.SANDBOX1                               False
+FoSSE Redmond                                          False
+MTP_BAND_STG                                           False
+nonprod.1soc.engineering.system                        False
+MTP_ResourceScraper_PRDMS                              False
+gitops                                                 False
+Rome-Orion-Dev1                                        False
+MAI Design + Research                                  False
+Shared Internal Workbooks                              False
+GDT - Cosmos_C&E_Azure_AzureEngineeringSystems_100200  False
+Matt Clark Dev Test                                    False
+Picasso DevX                                           False
+Power Automate R&D Testing                             False
+COSINE-ES-FailureAnalysis                              False
+R&D Correlation Platform                               False
+Azure Migrate Demo Subscription                        False
+Sky_ConfigGuard_Prod                                   False
+Applied Sciences Group Dev                             False
+AISC-MAIA_DEV                                          False
+Efficiency Pack Services (MSIT)                        False
+IDEAs MS Reporting                                     False
+MSFT-Modern Device-Modern Mgmt-Imaging00               False
+Azure Service Insights - Development                   False
+OE-ES365-AI - External - Dev                           False
+Sky_ConfigGuard_Test                                   False
+1ES-MCP                                                False
+EngThrive-PROD-MSIT                                    False
+Azure DNS LKG Client Cache - Test                      False
+ARM Test Environment                                   False
+IOT_PLATFORM_UPX_TEST                                  False
+OCTO - MADE Explorations                               False
+EngThrive-DEV                                          False
+Azure Copilot AIOps INT                                False
+Observability_AzMon_Grafana_Dev                        False
+Azure Profiler - Testing                               False
+Developer VM Optimization                              False
+Windows Payload Tracking                               False
+Data Pillar Security Tooling                           False
+Containment Copilot PPE                                False
+AnmInfrastructure                                      False
+WAN Optical                                            False
+Datapath Test Subscription                             False
+AIVerticalsEng                                         False
+ODSP EFun Dev Resources                                False
+OneBranch Services ER - Dev                            False
+AzPIESecurity-DEV-Apple                                False
+AML Infra - Engineering System                         False
+FunGates-DiffPipeline-Dev                              False
+emilyzhu dev subscription                              False
+Python_AI_Tools_PM_Team_Sub (jbinder)                  False
+OFP-EU-ALEXHUTANU                                      False
+Babel                                                  False
+Edge_AzureStackZ_Haas_Release                          False
+AISC-EngSys-01                                         False
+Internal App Insights Resources for Perflens           False
+Quantus Singularity                                    False
+AML - Responsible AI R&D                               False
+Pytorch Build                                          False
+TScience                                               False
+HPCScrub1                                              False
+Speech Services - DEV - SDK (carbon)                   False
+ODM VC Management                                      False
+UI Fabric                                              False
+xt-teams-migration-dev                                 False
+Speech Services - EXP2                                 False
+ITSM Integration - Production - New                    False
+INVICTUS.DEV                                           False
+ASZ_Lab_Hardware_Dev_1                                 False
+Engineering Hub Dev                                    False
+Responsible & OpenAi Research                          False
+Marvel Intelligence Model Training Subscription        False
+Core-ES-STREAM-DeXDI                                   False
+AISC-DEV-02                                            False
+BrooklynSlice_4                                        False
+Network Traffic Analytics Subscription 3               False
+Name          IsDefault
+------------  -----------
+MSDN_Dmauser  True
+
+Deploying consumer side to: rg-glb-consumer-quorra in westus3
+Deploying provider side to: rg-glb-provider-quorra in westus3
+
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: [Coming breaking change] In the coming release, the default behavior will be changed as follows when sku is Standard and zone is not provided: For zonal regions, you will get a zone-redundant IP indicated by zones:["1","2","3"]; For non-zonal regions, you will get a non zone-redundant IP indicated by zones:null.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: A new Bicep release is available: v0.43.8. Upgrade now by running "az bicep upgrade".
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+WARNING: A new Bicep release is available: v0.43.8. Upgrade now by running "az bicep upgrade".
+Provider NVA ELB Public IP (use port 50443 for primary, 50444 for secondary management):
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+20.168.66.100
+Name          IsDefault
+------------  -----------
+MSDN_Dmauser  True
+Waiting for GLB frontend IP (provider-nva-glb/FW) to be queryable...
+GLB frontend IP queryable — proceeding with chain.
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+GLB Frontend IP Config ID: /subscriptions/36ead89c-e817-4abc-ae66-5d29d23995bb/resourceGroups/rg-glb-provider-quorra/providers/Microsoft.Network/loadBalancers/provider-nva-glb/frontendIPConfigurations/FW
+WARNING: Unable to load extension 'bastion_disabled: cannot access local variable 'command_loader' where it is not associated with a value'. Use --debug for more information.
+ERROR: (InvalidGlobalResourceReference) Resource /subscriptions/36ead89c-e817-4abc-ae66-5d29d23995bb/resourceGroups/rg-glb-provider-quorra/providers/Microsoft.Network/loadBalancers/provider-nva-glb/frontendIPConfigurations/FW referenced by resource /subscriptions/36ead89c-e817-4abc-ae66-5d29d23995bb/resourceGroups/rg-glb-consumer-quorra/providers/Microsoft.Network/loadBalancers/consumer-elb was not found. Please make sure that the referenced resource exists.
+Code: InvalidGlobalResourceReference
+Message: Resource /subscriptions/36ead89c-e817-4abc-ae66-5d29d23995bb/resourceGroups/rg-glb-provider-quorra/providers/Microsoft.Network/loadBalancers/provider-nva-glb/frontendIPConfigurations/FW referenced by resource /subscriptions/36ead89c-e817-4abc-ae66-5d29d23995bb/resourceGroups/rg-glb-consumer-quorra/providers/Microsoft.Network/loadBalancers/consumer-elb was not found. Please make sure that the referenced resource exists.
