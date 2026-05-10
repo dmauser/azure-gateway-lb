@@ -1,3 +1,9 @@
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Ram — History
 
 ## Project Context
@@ -202,4 +208,5 @@ All 4 placeholders verified present with exact spelling.
 **boot.config note:** The `-D -h` `/boot.config` kernel cmdline override was NOT found in dmauser/opnazure. No `boot.config` artifact needed for this pattern. The `<secondaryconsole>serial</secondaryconsole>` XML element is sufficient for OPNsense to configure the FreeBSD kernel console at boot.
 
 **No shell scripts touched** — XML-only change. `bash -n` gate N/A.
+
 

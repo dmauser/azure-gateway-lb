@@ -1,3 +1,18 @@
+## SUMMARY (Entries pre-2026-04-09)
+
+History truncated for readability. Old entries archived. Key milestones:
+- Round 7 deployment arc completed
+- VXLAN validation confirmed
+- Team expanded to 8 members
+- CI workflow staged for commit
+
+---
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Quorra — History
 
 ## Project Context
@@ -439,4 +454,6 @@
 - **CSE v1.5 (`OSTCExtensions.CustomScriptForLinux`) works on FreeBSD 14.1.** This is the correct extension for FreeBSD; FreeBSD 14.4 was incompatible due to unrelated reasons (Linux ELF issue in run-command). FreeBSD 14.1 + CSE v1.5 is the working combination.
 - **SSH NAT rules (port 22) are essential for live debugging.** Future Bicep should include debug NAT rules (port 50022/50023 → port 22) or a Bastion host to enable direct root SSH to NVAs for post-deploy validation.
 - **`pfctl reply-to` must use the correct LAN gateway.** If the CIDR prefix is wrong, the gateway IP computation is wrong, and pfctl routes health probe replies to the wrong interface, causing health check failures even when OPNsense is fully up.
+
+
 

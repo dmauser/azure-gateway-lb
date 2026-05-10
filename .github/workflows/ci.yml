@@ -1,0 +1,102 @@
+# CI — Azure Gateway Load Balancer Lab
+#
+# Jobs:
+#   1. bicep-build  — compile all top-level Bicep files (excludes archived/)
+#   2. bicep-lint   — lint all top-level Bicep files
+#   3. shellcheck   — static analysis on scripts/*.sh and deploy.azcli
+#
+# This workflow acts as the reviewer gate for PRs targeting main.
+# It does NOT deploy resources to Azure.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1: Bicep build — fail if any top-level Bicep file has compilation errors
+  # ---------------------------------------------------------------------------
+  bicep-build:
+    name: Bicep Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      - name: Build glb-active-active.bicep
+        run: az bicep build --file bicep/glb-active-active.bicep --outfile /dev/null
+
+      - name: Build any other top-level Bicep files (excluding archived/)
+        run: |
+          find bicep -maxdepth 1 -name '*.bicep' | while read -r f; do
+            echo "Building: $f"
+            az bicep build --file "$f" --outfile /dev/null
+          done
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Bicep lint — surface warnings and best-practice violations
+  # ---------------------------------------------------------------------------
+  bicep-lint:
+    name: Bicep Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      - name: Lint glb-active-active.bicep
+        run: az bicep lint --file bicep/glb-active-active.bicep
+
+      - name: Lint any other top-level Bicep files (excluding archived/)
+        run: |
+          find bicep -maxdepth 1 -name '*.bicep' | while read -r f; do
+            echo "Linting: $f"
+            az bicep lint --file "$f"
+          done
+
+  # ---------------------------------------------------------------------------
+  # Job 3: ShellCheck — static analysis on shell scripts
+  # ---------------------------------------------------------------------------
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Check deploy.azcli
+        # deploy.azcli uses bash syntax — tell shellcheck explicitly
+        run: shellcheck --shell=bash --severity=warning deploy.azcli
+
+      - name: Check scripts/*.sh
+        run: |
+          find scripts -name '*.sh' | while read -r f; do
+            echo "Checking: $f"
+            shellcheck --shell=bash --severity=warning "$f"
+          done

@@ -1,3 +1,9 @@
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Beck — History
 
 ## Project Context
@@ -90,4 +96,5 @@ FreeBSD on Azure Bootstrap Decision Tree:
     └── Azure reserves: network+1 (gw), +2, +3, +4 (platform). GLB frontend grabs +4 (first DHCP).
         NVAs land at +5 (primary), +6 (secondary). Use +5/+6 offsets in Bicep, not +4/+5.
 ```
+
 

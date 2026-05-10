@@ -1,3 +1,9 @@
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Dumont — History
 
 ## Project Context
@@ -55,3 +61,4 @@
 - No conflict with Flynn (docs/architecture/*) — docs/debug/* is a new folder
 - Cross-links added: runbooks link to each other and to ../troubleshooting.md + ../troubleshooting-freebsd-on-azure.md
 - Decision drop filed: `.squad/decisions/inbox/dumont-debug-runbooks.md`
+

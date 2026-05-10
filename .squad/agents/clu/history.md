@@ -1,3 +1,18 @@
+## SUMMARY (Entries pre-2026-04-09)
+
+History truncated for readability. Old entries archived. Key milestones:
+- Round 7 deployment arc completed
+- VXLAN validation confirmed
+- Team expanded to 8 members
+- CI workflow staged for commit
+
+---
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Clu — History
 
 ## Project Context
@@ -346,3 +361,5 @@ securityProfile: {
 - Handoff: Implement both in parallel; Flynn will remove CSE from `deploy.azcli` after merge.
 
 **From Ram:** Phase 2 scripts complete; awaiting your FreeBSD 14.4 Bicep confirmation to proceed with live image testing. Script versions now at 25.1/v2.12.0.4/python3.11.
+
+

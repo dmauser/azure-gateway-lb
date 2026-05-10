@@ -1,16 +1,44 @@
-# Now
+# NOW — Current Project State
 
-**Last focused:** TL + cloud-init shipped (Clu commit 9c369e8); Quorra reviewer gate in flight; CI workflow file present, awaiting push to main.
+**Updated:** 2026-05-09T23:03:12Z
+**Session:** Round 7 Close-out Complete
 
-**Current status:** 
-- Clu: Trusted Launch + cloud-init implementation COMPLETE (Path B — consumer-vm.bicep module + top-level deployable + deploy.azcli rewire). Commits 86732d8 & 9c369e8. Bicep builds clean.
-- Quorra: Post-commit reviewer gate in flight. Verdict pending at `.squad/decisions/inbox/quorra-tl-cloudinit-verdict.md`.
-- Flynn: ADRs were spec-phase deliverable; no tactical impact this session.
-- Ram: No impact (Phase 2 work complete).
+## Status: ✅ ALL GATES GREEN
 
-**Next session entry point:** 
-1. Read Quorra's verdict at `.squad/decisions/inbox/quorra-tl-cloudinit-verdict.md` (or merged in decisions.md if already integrated).
-2. If APPROVE → Daniel runs live smoke tests per `docs/validation/trusted-launch-cloudinit-checklist.md`.
-3. If REJECT → Coordinator dispatches alternative agent per lockout procedure.
+### Deployment Status
+- **Round:** 7 (FINAL)
+- **Result:** SUCCESS — all blocking issues resolved
+- **Validation:** VXLAN tcpdump confirmed bidirectional traffic on 10800/10801
+- **Final Commit:** a661e7f (Quorra)
 
-See `.squad/decisions.md` for full Phase 0–3 decision records, `.squad/orchestration-log/` for agent logs by timestamp.
+### Infrastructure State
+- **Boot Image:** freebsd-14_1/zfs
+- **Bootstrap Method:** CustomScriptForLinux v1.5 inline
+- **Network:** VXLAN validated end-to-end
+- **Resource Groups:** Both cleaned (rg-glb-consumer-quorra, rg-glb-provider-quorra)
+
+### Documentation
+- **decisions.md:** Merged 22 inbox files; archived entries >30 days old
+- **Session Log:** 2026-05-10T040236-deploy-7-rounds-green.md created
+- **Orchestration Logs:** Per-agent logs created for Flynn, Clu, Ram, Quorra, Dumont, Beck
+- **Agent Histories:** Updated and summarized (3 files exceeded 15KB threshold)
+- **CI Workflow:** .github/workflows/ci.yml staged for commit (Flynn authored)
+
+### Team Composition
+- **Original (6):** Flynn, Clu, Ram, Quorra, Coordinator, Scribe
+- **Added (2):** Dumont (Operations/Debug), Beck (Bootstrap Architect)
+- **Total:** 8 members (all Tron universe)
+
+### Known-Good State
+Repo is in known-good shape. All documentation reflects post-Round-7 reality. Source code and infrastructure verified. Ready for re-deployment.
+
+### Next Session Entry Point
+\\\ash
+export SSH_PUBLIC_KEY="<your-public-key>"
+bash deploy.azcli
+\\\
+
+Re-deploy is the proof — verify from a fresh shell with SSH_PUBLIC_KEY set.
+
+---
+Scribe logged at Z

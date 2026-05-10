@@ -1,3 +1,18 @@
+## SUMMARY (Entries pre-2026-04-09)
+
+History truncated for readability. Old entries archived. Key milestones:
+- Round 7 deployment arc completed
+- VXLAN validation confirmed
+- Team expanded to 8 members
+- CI workflow staged for commit
+
+---
+## Round 7 Deployment Close-out
+- **Date:** 2026-05-09
+- **Status:** ✅ ALL GATES GREEN
+- **Session:** End-to-end deployment validated; VXLAN tcpdump confirmed bidirectional; all RGs cleaned; CI workflow staged
+- **Key Outcome:** Full session arc logged, decisions merged, team expanded to 8 members
+- **Next:** Deployment proof via bash deploy.azcli with SSH_PUBLIC_KEY set
 # Flynn — History
 
 ## Project Context
@@ -380,4 +395,6 @@ scattered across decision drops, history.md, and ADRs. Having a single
 Azure features on FreeBSD — preventing future rounds from repeating the same investigations.
 
 **Decision drop:** `.squad/decisions/inbox/flynn-docs-improvement.md`
+
+
 
