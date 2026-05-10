@@ -274,3 +274,110 @@ The `az vm run-command invoke --command-id RunShellScript` uses WAAgent's built-
 
 **Status:** ✅ FIX SHIPPED — ready for Quorra round 3 deploy.
 
+---
+
+### 2026-05-09T13:42:28-05:00: Round 6 — FreeBSD python3, pipefail-safe cloud-init, GLB chain poll
+
+**Session:** Round 6 reassignment from Quorra (Ram locked out per reviewer protocol).  
+**Deliverable:** Three coordinated fixes shipped in commit `519bf26`.
+
+#### Learnings
+
+**1. FreeBSD python-symlink ordering trap**
+
+`configureopnsense.sh` called `python get_nic_gw.py $3` (both Primary and Secondary branches)
+before creating the `python` → `python3.11` symlink. On FreeBSD 14.4, only `python3`/`python3.11`
+exist at script start. The script uses `set -euo pipefail`, so it exited immediately at the
+`python` call — silently skipping all downstream steps (OPNsense install, VXLAN config, waagent).
+
+**Rule:** On FreeBSD 14.4 (and any system without a guaranteed `python` symlink), always invoke
+`python3` directly. Never depend on `python` pointing anywhere. Never create a symlink as a
+workaround when the direct invocation is available. Audit every `python` call before commit.
+
+**2. pipefail / exit-status pattern in cloud-init runcmd**
+
+`runcmd` step: `script ... 2>&1 | tee /var/log/out.log` — tee always exits 0. The downstream
+sentinel step runs unconditionally, writing a "success" marker even when the script failed. This
+masks the real failure and fools post-deploy smoke tests.
+
+**Rule:** Never pipe through `tee` in runcmd without capturing the script's exit code. Pattern:
+```sh
+script ... > /var/log/out.log 2>&1; rc=$?; cat /var/log/out.log; \
+[ $rc -eq 0 ] && echo ok > /var/run/done || echo "failed-rc=$rc" > /var/run/failed; exit $rc
+```
+The `exit $rc` propagates failure to cloud-init's status reporting. The `cat` preserves log
+visibility in cloud-init's own output log. The dual sentinel files give smoke tests a fast signal.
+
+**3. GLB chain race condition pattern**
+
+After `az deployment group create` returns (Bicep complete), the GLB resource exists in ARM
+but hasn't propagated to all ARM endpoints. An immediate `az network lb frontend-ip update
+--gateway-lb $glbfeid` fails with `InvalidGlobalResourceReference`. Quorra's workaround was
+manual retry after 2 minutes.
+
+**Rule:** Never issue a cross-resource ARM reference update immediately after the referenced
+resource's deployment. Poll for queryability first:
+```bash
+until az network lb frontend-ip show -g "$rg" --lb-name provider-nva-glb --name FW \
+        --query id -o tsv >/dev/null 2>&1; do sleep 5; done
+```
+This applies generally to any ARM chaining operation (e.g., GLB chain, Private Endpoint, VNet
+peering that depends on a freshly created resource).
+
+**Status:** ✅ ROUND-6 FIXES SHIPPED — ready for push + Quorra round 6.
+
+---
+
+### 2026-05-09T19:20:21-05:00: Documentation Audit + Improvement Pass (post-Round-6)
+
+**Session:** Docs-only improvement pass on request from Daniel Mauser.  
+**Directive:** "improve, and add the missing points on the documentation" + VXLAN must be proven at
+tcpdump level + every README step must execute and work.
+
+#### Files modified: 5 existing, 1 new
+
+| File | Change |
+|------|--------|
+| `README.md` | Added `OPN_BOOTSTRAP_URI` env var; "What Gets Deployed" table; "Validation Walkthrough" with tcpdump proof; "Known Constraints" table; "Cleanup" section; updated TOC |
+| `docs/troubleshooting.md` | Added Round 1–6 failure Q+As; VXLAN tcpdump proof procedure; corrected OPNsense bootstrap check (cloud-init, not CSE); added "README Validation Discipline" section |
+| `docs/architecture/trusted-launch.md` | Status → "Implemented (consumer-only); FreeBSD opted-out"; added empirical evidence table + commit refs |
+| `docs/architecture/cloud-init-migration.md` | Status → "Implemented"; expanded scope to include OPNsense NVAs; added templating contract; added exit-code-preserving runcmd pattern |
+| `docs/validation/trusted-launch-cloudinit-checklist.md` | Added Section 6 (Round 6 learnings): 3e correction (null not TL), 3h bootstrap gate, mandatory tcpdump proof |
+| `docs/troubleshooting-freebsd-on-azure.md` | **NEW** — single-source FreeBSD-on-Azure constraint guide (TL, extensions, cloud-init, fetch, python3, runcmd, marketplace terms, image SKU) |
+
+#### Learnings
+
+**1. README env-var drift is a deploy blocker, not a style issue**
+
+`OPN_BOOTSTRAP_URI` was missing from the README prerequisites table. This contributed to Round 4's
+pre-deploy halt: Daniel's team didn't know to set the variable, and the default pointed to stale
+GitHub main. Every env var in `deploy.azcli` must have a corresponding row in the README table,
+with defaults, required-vs-optional, and what-it-does. Any gap between README and script is a bug.
+
+**Principle established:** "README must mirror deploy.azcli env contract."
+
+**2. Validation must include direct evidence, not inference**
+
+"nginx returned 200" does not prove VXLAN is working — it could succeed via direct LB routing if
+the GLB chain has a gap. The only proof is `tcpdump -nn -i any "udp port 10800 or udp port 10801"`
+on the OPNsense NVA while traffic flows. This must appear in README and troubleshooting.md.
+
+**Principle established:** "Every end-to-end test that has multiple possible paths must document
+the narrowest possible evidence (e.g. tcpdump at the encapsulation layer), not just the output."
+
+**3. Old CSE references in troubleshooting.md created confusion post-Round-3**
+
+The Phase 3 troubleshooting guide said to check `az vm extension show ... --name CustomScript` to
+verify OPNsense bootstrap. CSE was completely removed in Round 3. This stale reference would have
+misled anyone following the doc post-Round-3. Docs must be updated whenever the bootstrap mechanism
+changes — they are part of the implementation, not an afterthought.
+
+**4. Single-source FreeBSD constraint doc prevents re-discovering known failures**
+
+Rounds 1–3 each independently discovered a different FreeBSD-on-Azure incompatibility. These were
+scattered across decision drops, history.md, and ADRs. Having a single
+`docs/troubleshooting-freebsd-on-azure.md` provides a checklist before attempting new OS-level
+Azure features on FreeBSD — preventing future rounds from repeating the same investigations.
+
+**Decision drop:** `.squad/decisions/inbox/flynn-docs-improvement.md`
+

@@ -4,6 +4,9 @@
 
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
+    - [Environment variables table](#required-environment-variables)
+    - [Quick start](#quick-start)
+- [What gets deployed](#what-gets-deployed)
 - [Network diagram](#lab-network-diagram)
     - [Components and traffic flow](#components-and-traffic-flow)
     - [Considerations](#considerations)
@@ -12,10 +15,18 @@
     - [Prerequisites](#lab-prerequisites)
     - [Consumer](#consumer)
     - [Provider](#provider)
+- [Validation walkthrough](#validation-walkthrough)
 - [Traffic inspection](#traffic-inspection)
     - [Layer 4](#layer-4-firewall)
     - [Layer 7](#layer-7-inspection)
     - [IDS](#intrusion-detection-ids)
+- [Known constraints](#known-constraints)
+- [Cleanup](#cleanup)
+- [Troubleshooting](./docs/troubleshooting.md)
+- [Architecture decisions](./docs/architecture/)
+    - [Trusted Launch](./docs/architecture/trusted-launch.md)
+    - [Cloud-init migration](./docs/architecture/cloud-init-migration.md)
+- [FreeBSD on Azure](./docs/troubleshooting-freebsd-on-azure.md)
 
 ## Introduction
 
@@ -47,13 +58,18 @@ We assume you have some basic knowledge of what GLB is. If not, below are some r
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `SSH_PUBLIC_KEY` | yes | — | Public key for VM SSH access (e.g. `~/.ssh/id_rsa.pub`) |
-| `SUBSCRIPTION_ID` | no | current | Azure subscription to deploy to |
-| `LOCATION` | no | `westus2` | Azure region |
-| `RG_CONSUMER` | no | `glb-consumer-rg` | Consumer resource group |
-| `RG_PROVIDER` | no | `glb-provider-rg` | Provider resource group |
-| `ADMIN_USERNAME` | no | `azureuser` | VM admin username |
-| `BASTION_DEPLOY` | no | `false` | Set `true` to deploy Bastion |
+| `SSH_PUBLIC_KEY` | **yes** | — | SSH public key string for VM access (e.g. `"$(cat ~/.ssh/id_rsa.pub)"`) |
+| `SUBSCRIPTION_ID` | no | current | Azure subscription ID to deploy to; switches context before deploy |
+| `LOCATION` | no | `westus2` | Azure region for all resources |
+| `RG_CONSUMER` | no | `glb-consumer-rg` | Consumer resource group name |
+| `RG_PROVIDER` | no | `glb-provider-rg` | Provider resource group name |
+| `ADMIN_USERNAME` | no | `azureuser` | VM admin username (consumer and provider) |
+| `BASTION_DEPLOY` | no | `false` | Set `true` to deploy Azure Bastion in both resource groups |
+| `OPN_BOOTSTRAP_URI` | no | `https://raw.githubusercontent.com/dmauser/azure-gateway-lb/main/scripts/` | Base URI (with trailing slash) for `configureopnsense.sh` — cloud-init fetches from this URL at first boot. **Must point to a public ref containing your latest script changes.** |
+
+> ⚠️ **Marketplace terms:** `thefreebsdfoundation/freebsd-14_4` requires `az vm image terms accept` on each subscription before first deploy. `deploy.azcli` handles this automatically, but some Enterprise Agreement (EA) and CSP subscriptions have policies that prevent third-party marketplace acceptance — contact your Azure administrator if terms acceptance fails.
+
+> ⚠️ **`OPN_BOOTSTRAP_URI` must point to pushed code:** The OPNsense NVA VMs fetch `configureopnsense.sh` from this URL at first boot. If you have local changes that haven't been pushed, set `OPN_BOOTSTRAP_URI` to point to your pushed branch before running `deploy.azcli`.
 
 ### Quick start
 
@@ -62,7 +78,43 @@ export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
 bash deploy.azcli
 ```
 
+> **Note:** If you have local changes to `scripts/configureopnsense.sh` that haven't been pushed yet, set `OPN_BOOTSTRAP_URI` to a pushed branch:
+> ```bash
+> export OPN_BOOTSTRAP_URI="https://raw.githubusercontent.com/dmauser/azure-gateway-lb/<your-branch>/scripts/"
+> ```
+
 > **Note:** `main-two-nics.bicep` (single-NVA, two-NIC topology) is archived under `archived/` and is no longer maintained. The canonical deployment is the active-active topology (`bicep/glb-active-active.bicep`).
+
+---
+
+## What Gets Deployed
+
+Running `bash deploy.azcli` creates the following resources:
+
+### Consumer resource group (`$RG_CONSUMER`, default: `glb-consumer-rg`)
+
+| Resource | Type | Details |
+|----------|------|---------|
+| `consumer-vnet` | Virtual Network | `10.0.0.0/24` with `vmsubnet` (`/27`) and optional `AzureBastionSubnet` (`/27`) |
+| `consumer-nsg` | NSG | Allows SSH and HTTP inbound |
+| `consumer-elb-pip` | Public IP | Standard, Static — the consumer ELB public-facing IP |
+| `consumer-elb` | External Load Balancer | Standard SKU; HTTP (port 80) rule + health probe; SSH NAT rule (50000→22) |
+| `consumer-vm` | Ubuntu 22.04 Gen2 VM | Trusted Launch (Secure Boot + vTPM); nginx via cloud-init |
+| `consumer-bastion` | Azure Bastion (optional) | Deployed when `BASTION_DEPLOY=true` |
+
+### Provider resource group (`$RG_PROVIDER`, default: `glb-provider-rg`)
+
+| Resource | Type | Details |
+|----------|------|---------|
+| `provider-vnet` | Virtual Network | `10.0.0.0/24` with `external` (`/27`), `internal` (`/27`), optional `AzureBastionSubnet` (`/27`) |
+| `provider-nva-glb` | Gateway Load Balancer | HA Ports rule; VXLAN backend (UDP 10800/10801, VNI 800/801); TCP 443 health probe |
+| `provider-nva-elb` | External Load Balancer (management) | NAT rules: 50443→443 (primary), 50444→443 (secondary) |
+| `provider-nva-elb-pip` | Public IP | Management access to OPNsense web UI |
+| `provider-nva-primary` | FreeBSD 14.4 Gen2 VM | OPNsense NVA (no Trusted Launch — platform constraint); bootstrapped via cloud-init |
+| `provider-nva-secondary` | FreeBSD 14.4 Gen2 VM | Same as primary; VXLAN peer |
+| `provider-bastion` | Azure Bastion (optional) | Deployed when `BASTION_DEPLOY=true` |
+
+**GLB chain:** After both sides deploy, `deploy.azcli` links `consumer-elb` frontend (`frontendip1`) to `provider-nva-glb` frontend (`FW`). All traffic through the consumer ELB is redirected to OPNsense for inspection.
 
 ## Lab Network diagram
 
@@ -465,3 +517,214 @@ IDS (Intrusion Detection System) capabilities are available in OPNsense and can 
 ### Layer 7 inspection
 
 Layer 7 (Application layer) inspection and filtering capabilities are available in OPNsense through its proxy and content filtering features. For advanced L7 filtering setup, see [OPNsense IDS/IPS docs](https://docs.opnsense.org/) for detailed configuration of HTTP/HTTPS inspection, DPI (Deep Packet Inspection), and application-layer threat detection. This lab does not configure L7 filtering by default but the GLB infrastructure supports adding these advanced inspection capabilities.
+
+---
+
+## Validation Walkthrough
+
+This section answers: **"Did it work?"** Each step must pass before moving to the next.
+
+### Step 1 — Consumer VM is running and nginx is healthy
+
+```bash
+# Check VM power state:
+az vm get-instance-view \
+    --resource-group "$RG_CONSUMER" \
+    --name consumer-vm \
+    --query 'instanceView.statuses[?code==`PowerState/running`]' \
+    -o json
+# Expected: one entry with "code": "PowerState/running"
+
+# Verify nginx responds directly (no GLB chain yet):
+consumer_pip=$(az network public-ip show \
+    -g "$RG_CONSUMER" --name consumer-elb-pip --query ipAddress -o tsv)
+curl http://$consumer_pip
+# Expected: Test Website on consumer-vm
+```
+
+### Step 2 — Consumer VM Trusted Launch is active
+
+```bash
+az vm show \
+    --resource-group "$RG_CONSUMER" \
+    --name consumer-vm \
+    --query 'securityProfile' \
+    -o json
+# Expected:
+# {
+#   "securityType": "TrustedLaunch",
+#   "uefiSettings": { "secureBootEnabled": true, "vTpmEnabled": true }
+# }
+```
+
+### Step 3 — Consumer cloud-init completed
+
+```bash
+# SSH into consumer-vm via ELB NAT rule (port 50000):
+ssh azureuser@$consumer_pip -p 50000
+
+# On the VM:
+cloud-init status
+# Expected: status: done
+
+sudo cat /var/log/cloud-init-output.log | tail -20
+# Expected: lines including "Setting up nginx" and cloud-init "finished" message
+```
+
+### Step 4 — OPNsense NVAs deployed (no Trusted Launch)
+
+```bash
+az vm show -g "$RG_PROVIDER" -n provider-nva-primary --query 'securityProfile' -o json
+az vm show -g "$RG_PROVIDER" -n provider-nva-secondary --query 'securityProfile' -o json
+# Expected: null (no securityProfile block — FreeBSD 14.4 platform constraint)
+```
+
+### Step 5 — OPNsense bootstrap succeeded on both NVAs
+
+```bash
+# SSH into primary NVA via Bastion (if deployed):
+provider_elb_pip=$(az network public-ip show \
+    -g "$RG_PROVIDER" --name provider-nva-elb-pip --query ipAddress -o tsv)
+echo "Provider ELB PIP: $provider_elb_pip"
+# Access OPNsense web UI at: https://$provider_elb_pip:50443 (primary)
+#                             https://$provider_elb_pip:50444 (secondary)
+
+# If Bastion is deployed, SSH to primary:
+az network bastion ssh \
+    --name provider-bastion \
+    --resource-group "$RG_PROVIDER" \
+    --target-resource-id "$(az vm show -g "$RG_PROVIDER" -n provider-nva-primary --query id -o tsv)" \
+    --auth-type ssh-key \
+    --username root \
+    --ssh-key ~/.ssh/id_rsa
+
+# On the NVA — check bootstrap sentinel:
+cat /var/run/opnsense-bootstrap-done
+# Expected: bootstrap-ok-<ISO8601Z timestamp>
+# If absent: check /var/run/opnsense-bootstrap-failed and /var/log/opnsense-bootstrap.log
+
+# Verify OPNsense config was applied:
+grep -i hostname /usr/local/etc/config.xml
+# Expected: OPNsense-Primary (or OPNsense-Secondary)
+```
+
+### Step 6 — GLB chain is established
+
+```bash
+az network lb frontend-ip show \
+    -g "$RG_CONSUMER" \
+    --lb-name consumer-elb \
+    --name frontendip1 \
+    --query gatewayLoadBalancer.id \
+    -o tsv
+# Expected: non-empty resource ID:
+# /subscriptions/.../resourceGroups/glb-provider-rg/.../provider-nva-glb/frontendIPConfigurations/FW
+# Empty output = chain not established; re-run GLB chain step from deploy.azcli
+```
+
+### Step 7 — VXLAN end-to-end proof (tcpdump)
+
+> **This is the required validation.** An nginx HTTP response alone is not sufficient — it can succeed via direct routing if the GLB chain is bypassed. The tcpdump below proves traffic is encapsulated and flowing through the OPNsense VXLAN tunnel.
+
+**Terminal 1 — Generate traffic continuously:**
+
+```bash
+consumer_pip=$(az network public-ip show \
+    -g "$RG_CONSUMER" --name consumer-elb-pip --query ipAddress -o tsv)
+while true; do curl -s http://$consumer_pip > /dev/null; sleep 1; done
+```
+
+**Terminal 2 — SSH into OPNsense primary NVA and capture VXLAN:**
+
+```bash
+# (SSH to NVA via Bastion or SSH NAT — see Step 5 above)
+
+# Capture VXLAN encapsulated UDP traffic on any interface:
+tcpdump -nn -i any "udp port 10800 or udp port 10801"
+```
+
+**Expected output (PASS):**
+
+```
+14:23:01.123456 IP 10.0.0.4.XXXXX > 10.0.0.36.10800: UDP, length 78
+14:23:01.124001 IP 10.0.0.36.10801 > 10.0.0.4.XXXXX: UDP, length 78
+```
+
+Packets arriving on UDP 10800 (inbound VXLAN from GLB) and departing on UDP 10801 (outbound VXLAN
+returning to GLB) confirm that traffic is being encapsulated and flowing through the NVA.
+
+**Alternative — capture at the vxlan interface level:**
+
+```bash
+tcpdump -nn -i vxlan0   # inbound (Internet → NVA via GLB)
+tcpdump -nn -i vxlan1   # outbound (NVA → consumer backend via GLB)
+```
+
+**Validate nginx response is via GLB chain:**
+
+```bash
+# With traffic running and GLB chain active, this should return the expected page:
+curl http://$consumer_pip
+# Expected: Test Website on consumer-vm
+
+# To prove GLB is in path, temporarily remove chain and verify timeout:
+az network lb frontend-ip update \
+    -g "$RG_CONSUMER" --name frontendip1 --lb-name consumer-elb \
+    --public-ip-address consumer-elb-pip --gateway-lb "" --output none
+curl --max-time 5 http://$consumer_pip
+# Expected: timeout (OPNsense not configured to forward without chain)
+
+# Restore the chain:
+glbfeid=$(az network lb frontend-ip show \
+    -g "$RG_PROVIDER" --lb-name provider-nva-glb --name FW --query id -o tsv)
+az network lb frontend-ip update \
+    -g "$RG_CONSUMER" --name frontendip1 --lb-name consumer-elb \
+    --public-ip-address consumer-elb-pip --gateway-lb "$glbfeid" --output none
+```
+
+See also: [`docs/troubleshooting.md`](./docs/troubleshooting.md) for detailed VXLAN debugging and
+[`docs/troubleshooting-freebsd-on-azure.md`](./docs/troubleshooting-freebsd-on-azure.md).
+
+---
+
+## Known Constraints
+
+### FreeBSD / OPNsense on Azure
+
+| Constraint | Detail |
+|------------|--------|
+| **No Trusted Launch** | `thefreebsdfoundation/freebsd-14_4` is not on Azure's TL allowlist. Setting `securityType: 'TrustedLaunch'` on OPNsense VMs causes `BadRequest`. OPNsense deploys as Standard Gen2. |
+| **No Azure VM extensions** | `Microsoft.OSTCExtensions.CustomScriptForLinux` uses Python 2 (broken on FreeBSD Python 3). `Microsoft.Azure.Extensions.CustomScript` and `RunCommandLinux` are Linux ELF binaries (cannot execute). No FreeBSD extensions exist in Azure Marketplace. |
+| **Cloud-init only for bootstrap** | `thefreebsdfoundation` images ship with cloud-init pre-installed. All first-boot configuration is via `osProfile.customData`. |
+| **`fetch`, not `curl`** | FreeBSD base has `/usr/bin/fetch`. `curl` is a port, not installed by default. All scripts must use `fetch` for HTTP downloads. |
+| **`python3`, not `python`** | FreeBSD 14.4 has `python3`/`python3.11` only. No `python` symlink in PATH. All scripts must call `python3` directly. |
+| **Marketplace terms per subscription** | `az vm image terms accept` required before first deploy on any subscription. `deploy.azcli` handles this automatically. EA/CSP subs may restrict marketplace purchases. |
+| **Image SKU** | Current: `thefreebsdfoundation/freebsd-14_4/14_4-release-amd64-gen2-ufs`. Verify before pinning a different version. |
+
+Full details: [`docs/troubleshooting-freebsd-on-azure.md`](./docs/troubleshooting-freebsd-on-azure.md)
+
+### OPNsense Bootstrap
+
+| Constraint | Detail |
+|------------|--------|
+| **`OPN_BOOTSTRAP_URI` must be pushed** | NVAs fetch `configureopnsense.sh` from GitHub at first boot. Unpushed local changes will not be picked up. |
+| **No SSH NAT rule by default** | Current Bicep only exposes port 443 (50443/50444). Deploy with `BASTION_DEPLOY=true` for SSH access to NVAs. |
+| **Reboot after bootstrap** | `configureopnsense.sh` schedules a reboot. SSH sessions will drop; reconnect after ~2 minutes. |
+
+---
+
+## Cleanup
+
+Delete both resource groups and all contained resources:
+
+```bash
+az group delete -n "${RG_CONSUMER:-glb-consumer-rg}" --yes --no-wait
+az group delete -n "${RG_PROVIDER:-glb-provider-rg}" --yes --no-wait
+```
+
+Wait for deletion before re-deploying:
+
+```bash
+az group wait --deleted -n "${RG_CONSUMER:-glb-consumer-rg}"
+az group wait --deleted -n "${RG_PROVIDER:-glb-provider-rg}"
+```

@@ -1,8 +1,8 @@
 # ADR: Trusted Launch for GLB Lab VMs
 
-**Status:** Partially Implemented — OPNsense TL removed (see FreeBSD section)  
+**Status:** Implemented (consumer-only); FreeBSD opted-out per Azure platform constraint — empirically confirmed  
 **Date:** 2026-05-09  
-**Last Updated:** 2026-05-09  
+**Last Updated:** 2026-05-09T19:20:21-05:00  
 **Author:** Flynn (Lead / Azure Architect)  
 **Assignee:** Clu (Bicep implementation — complete)
 
@@ -172,11 +172,26 @@ resource opnsenseVm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
 
 ---
 
+## Current Status (post-Round-6, 2026-05-09)
+
+| VM | Trusted Launch | Secure Boot | vTPM | Evidence |
+|----|----------------|-------------|------|----------|
+| `consumer-vm` (Ubuntu 22.04 Gen2) | ✅ Enabled | ✅ true | ✅ true | Quorra Round 2–5: `az vm show ... --query securityProfile` → full TL |
+| `provider-nva-primary` (FreeBSD 14.4) | ⛔ Omitted | n/a | n/a | Quorra Round 1: `BadRequest` with TL; Round 2+ confirmed `securityProfile: null` |
+| `provider-nva-secondary` (FreeBSD 14.4) | ⛔ Omitted | n/a | n/a | Same as primary |
+
+Commits implementing the current state:
+- `d386f14` — Flynn: removed `securityProfile` from all three OPNsense VM modules
+- `86732d8` — Clu: consumer-vm TL implementation (full Trusted Launch)
+- `9c369e8` — Clu: Path B consumer-vm Bicep module wiring
+
+---
+
 ## Follow-up action
 
-> **Status:** ✅ Consumer VM (Ubuntu) TL implemented by Clu. ⛔ OPNsense TL removed by Flynn — empirically impossible with current FreeBSD 14.4 image.
+> **Status:** ✅ Consumer VM (Ubuntu) TL implemented and verified by Quorra (Rounds 2–5). ⛔ OPNsense TL empirically impossible — `securityProfile` block omitted per Azure platform constraint. No further action required until image support changes.
 >
-> **Re-check:** Run `az vm image show --publisher thefreebsdfoundation --offer freebsd-14_4 --sku 14_4-release-amd64-gen2-ufs --version latest --query "features[?name=='SecurityType'].value" -o tsv` periodically. If `TrustedLaunch` appears in output, re-add `securityProfile` to OPNsense modules with `secureBootEnabled: false, vTpmEnabled: true`.
+> **Re-check periodically:** Run `az vm image show --publisher thefreebsdfoundation --offer freebsd-14_4 --sku 14_4-release-amd64-gen2-ufs --version latest --query "features[?name=='SecurityType'].value" -o tsv`. If `TrustedLaunch` appears in output, re-add `securityProfile` to OPNsense modules with `secureBootEnabled: false, vTpmEnabled: true`.
 
 ---
 
