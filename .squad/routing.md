@@ -11,6 +11,7 @@ How to decide who handles what.
 | Architecture / network design | Flynn | Topology, NSGs, routing, README accuracy |
 | Code review | Flynn | Review PRs, gate risky changes |
 | Testing / validation | Quorra | `bicep build`, `deployment validate`, traffic tests |
+| OPNsense bootstrap mechanism (extension/customData/script glue) | Beck | end-to-end ownership of first-boot bootstrap, may author across bicep+scripts+deploy.azcli within that scope |
 | In-VM diagnostics / serial console | Dumont | SSH/serial-console into deployed VMs, gather evidence, author debug runbooks |
 | Scope & priorities | Flynn | What to build next, trade-offs, decisions |
 | Session logging | Scribe | Automatic — never needs routing |

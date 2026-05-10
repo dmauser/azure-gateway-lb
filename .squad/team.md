@@ -16,6 +16,7 @@
 | Clu    | IaC Engineer              | .squad/agents/clu/charter.md    | active |
 | Ram    | NVA / Scripts Engineer    | .squad/agents/ram/charter.md    | active |
 | Quorra | Validator / Tester        | .squad/agents/quorra/charter.md | active |
+| Beck   | Bootstrap Architect       | .squad/agents/beck/charter.md   | active |
 | Dumont | Operations / Debug        | .squad/agents/dumont/charter.md | active |
 | Scribe | Session Logger            | .squad/agents/scribe/charter.md | active |
 | Ralph  | Work Monitor              | .squad/agents/ralph/charter.md  | active |
